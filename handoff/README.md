@@ -140,7 +140,7 @@ The printed path is absolute; `~` is used here only to keep the example short. T
 sh handoff/tests/run.sh
 ```
 
-Run it from the repository root. It tests `install.sh` against a throwaway directory, checks the shipped files for absolute home paths and for shell that stock macOS lacks, and runs `shellcheck` when it is installed.
+The path above is from the repository root; the script itself runs from anywhere. It tests `install.sh` against a throwaway directory, checks the shipped files for absolute home paths and for shell that stock macOS lacks, and runs `shellcheck` when it is installed.
 
 ## Related
 
