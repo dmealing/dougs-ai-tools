@@ -13,7 +13,7 @@
     {
       "name": "pickup",
       "source": "./pickup",
-      "description": "Experimental. Resume from a handoff without pasting its path: shows which handoff it chose and why before loading it. Requires handoff."
+      "description": "Experimental. Resume from a handoff without pasting its path: finds the handoff for the current checkout and shows which one it chose, why, and what else it could have chosen, before loading it. Requires handoff."
     }
   ]
 }
