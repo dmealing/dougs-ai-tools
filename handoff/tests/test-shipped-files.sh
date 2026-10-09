@@ -47,21 +47,42 @@ fi
 # --- 3. names line up --------------------------------------------------------
 manifest="$root/.claude-plugin/plugin.json"
 marketplace="$repo/.claude-plugin/marketplace.json"
-name_line='"name"[[:space:]]*:[[:space:]]*"handoff"'
-if grep -qE -- "$name_line" "$manifest"; then
-	pass "plugin manifest is named handoff"
+if command -v python3 >/dev/null 2>&1; then
+	json_field() {
+		# json_field <file> <key> [<key>...]: print the value at that path;
+		# a list is stepped into with the key as the element index.
+		python3 - "$@" 2>/dev/null <<'EOF'
+import json, sys
+try:
+    doc = json.load(open(sys.argv[1]))
+    for key in sys.argv[2:]:
+        doc = doc[int(key)] if isinstance(doc, list) else doc[key]
+    print(doc)
+except Exception:
+    sys.exit(1)
+EOF
+	}
+	expect_json() {
+		# expect_json <description> <expected> <file> <key> [<key>...]
+		desc=$1 expected=$2
+		shift 2
+		if value=$(json_field "$@"); then
+			if [ "$value" = "$expected" ]; then
+				pass "$desc"
+			else
+				fail "$desc: got '$value'"
+			fi
+		else
+			fail "$desc: '$1' is not valid JSON or lacks the key"
+		fi
+	}
+	expect_json "plugin manifest is named handoff" handoff "$manifest" name
+	expect_json "marketplace lists a plugin named handoff" handoff \
+		"$marketplace" plugins 0 name
+	expect_json "marketplace entry points at ./handoff" ./handoff \
+		"$marketplace" plugins 0 source
 else
-	fail "plugin manifest is not named handoff"
-fi
-if grep -qE -- "$name_line" "$marketplace"; then
-	pass "marketplace lists a plugin named handoff"
-else
-	fail "marketplace does not list a plugin named handoff"
-fi
-if grep -qE -- '"source"[[:space:]]*:[[:space:]]*"\./handoff"' "$marketplace"; then
-	pass "marketplace entry points at ./handoff"
-else
-	fail "marketplace entry does not point at ./handoff"
+	printf 'skip - python3 not found; plugin and marketplace JSON not parsed\n'
 fi
 if [ "$(sed -n '1p' "$skill")" = "---" ] && grep -qx 'name: handoff' "$skill"; then
 	pass "skill front matter names the skill handoff"
