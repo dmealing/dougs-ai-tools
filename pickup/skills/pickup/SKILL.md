@@ -58,7 +58,7 @@ Then one block per candidate, best first. Each has its `path:`, its `written:` d
 - `weak:` lines — a match that proves nothing: both on a default branch such as `main`, or both on a detached HEAD. It adds no points.
 - `flag:` lines — something the user should know before trusting it: `stale`, `repo-missing`, `branch-missing`, `different-checkout`, `different-branch`, `pr-merged`, `pr-closed`, `header-incomplete`.
 
-`pr: unknown` means the pull request could not be checked. It does not mean there is none.
+`pr: unknown` and `pr: not-checked` mean the pull request could not be checked. They do not mean there is none.
 
 ## Step 2 — Show the choice. Always, and before reading the file.
 
@@ -108,6 +108,8 @@ If the listing has `skipped:` lines, mention them in one line: they are files in
 
 Say there is nothing to pick up, mention the `archived:` count if it is not zero, and ask what the work is. Do not create a folder, and do not look in `done/` unless asked.
 
+If the `store:` line says `(does not exist)`, no handoff has ever been written on this machine with these settings. Say so: handoffs are written by the handoff skill (`/handoff`), which this skill needs and does not replace.
+
 ## Step 3 — Load, verify, start
 
 Once a handoff is chosen, by the script with no flags or by the user:
@@ -148,7 +150,7 @@ If the work is not finished, leave the file alone. Writing the next handoff is t
 - You picked the newest file, or the one with the most promising name, without the script proposing it
 - You adopted a handoff flagged `different-checkout` or `different-branch` without asking
 - You listed the store or searched `done/` yourself instead of running the script
-- You treated `pr: unknown` as "no pull request"
+- You treated `pr: unknown` or `pr: not-checked` as "no pull request"
 - You are reprinting the handoff's contents back to the user
 - You are retrying something listed under `## Dead ends`
 - You archived a handoff without the user agreeing

@@ -180,14 +180,26 @@ branch_exists() {
 	[ -n "$(git -C "$1" for-each-ref --count=1 --format=x "refs/remotes/*/$2" 2>/dev/null)" ]
 }
 
+# common_dir <directory>: the git directory that every worktree of the
+# repository holding that directory shares. Two checkouts with the same one
+# are the same repository. Fails outside a repository.
+common_dir() {
+	(
+		CDPATH='' cd -- "$1" 2>/dev/null || exit 1
+		shared=$(git rev-parse --git-common-dir 2>/dev/null) || exit 1
+		CDPATH='' cd -- "$shared" 2>/dev/null && pwd -P
+	)
+}
+
 # pull_request_rows: one line per recent pull request of this repository, as
-# STATE<tab>NUMBER<tab>BRANCH, newest first. Fails when the GitHub CLI fails.
+# STATE<tab>NUMBER<tab>BRANCH<tab>DATE-CLOSED, newest first. Fails when the
+# GitHub CLI fails.
 # A watchdog stops a call that hangs, because stock macOS has no command that
 # limits how long another command may run.
 pull_request_rows() {
 	"$gh_cmd" pr list --state all --limit 200 \
-		--json state,number,headRefName,isCrossRepository \
-		--jq '.[] | select(.isCrossRepository | not) | [.state, (.number | tostring), .headRefName] | @tsv' \
+		--json state,number,headRefName,isCrossRepository,closedAt \
+		--jq '.[] | select(.isCrossRepository | not) | [.state, (.number | tostring), .headRefName, ((.closedAt // "")[0:10])] | @tsv' \
 		2>/dev/null &
 	gh_pid=$!
 	(
@@ -203,20 +215,25 @@ pull_request_rows() {
 	return "$gh_status"
 }
 
-# pull_request_state <branch>: "open #N", "merged #N", "closed #N" or
-# "none-found", from the rows fetched above. An open pull request wins, so a
-# branch that was merged once and is in review again reads as open.
+# pull_request_state <branch> <date the handoff was written, or nothing>:
+# "open #N", "merged #N", "closed #N", "earlier #N" or "none-found", from the
+# rows fetched above. An open pull request wins, so a branch that was merged
+# once and is in review again reads as open. A pull request that was finished
+# before the handoff was written is "earlier": it belongs to older work on a
+# branch name that has been used again, and says nothing about this handoff.
 pull_request_state() {
-	printf '%s\n' "$pr_rows" | awk -F '\t' -v branch="$1" '
+	printf '%s\n' "$pr_rows" | awk -F '\t' -v branch="$1" -v written="$2" '
 		$3 == branch {
-			if ($1 == "OPEN" && !o) o = $2
-			else if ($1 == "MERGED" && !m) m = $2
-			else if ($1 == "CLOSED" && !c) c = $2
+			if ($1 == "OPEN") { if (!o) o = $2 }
+			else if (written != "" && $4 != "" && $4 < written) { if (!e) e = $2 }
+			else if ($1 == "MERGED") { if (!m) m = $2 }
+			else if ($1 == "CLOSED") { if (!c) c = $2 }
 		}
 		END {
 			if (o) print "open #" o
 			else if (m) print "merged #" m
 			else if (c) print "closed #" c
+			else if (e) print "earlier #" e
 			else print "none-found"
 		}'
 }
@@ -248,6 +265,10 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
 	[ -z "$top" ] || checkout=$top
 fi
 here=$(physical "$checkout") || here=$checkout
+here_common=''
+if [ "$in_git" -eq 1 ]; then
+	here_common=$(common_dir "$here") || here_common=''
+fi
 
 default_branches='main master trunk develop'
 if [ "$in_git" -eq 1 ]; then
@@ -376,7 +397,9 @@ for folder in "$root"/*/; do
 			fi
 		fi
 
-		# The checkout it was written in.
+		# The checkout it was written in. $elsewhere is 1 when that checkout
+		# exists and belongs to a repository other than this one.
+		elsewhere=0
 		recorded_repo_dir=''
 		if [ -z "$recorded_repo" ]; then
 			flags="${flags}  flag: header-incomplete no **Repo:** path$nl"
@@ -386,6 +409,10 @@ for folder in "$root"/*/; do
 				reasons="${reasons}  reason: repo-path +40 the recorded repository path is this checkout$nl"
 			else
 				flags="${flags}  flag: different-checkout the recorded repository path exists and is not this checkout$nl"
+				recorded_common=$(common_dir "$recorded_repo_dir") || recorded_common=''
+				if [ -z "$recorded_common" ] || [ "$recorded_common" != "$here_common" ]; then
+					elsewhere=1
+				fi
 			fi
 		else
 			recorded_repo_dir=''
@@ -398,27 +425,12 @@ for folder in "$root"/*/; do
 		fi
 		case "$recorded_kind" in
 		named)
-			named_branches=$((named_branches + 1))
+			[ "$elsewhere" -eq 1 ] || named_branches=$((named_branches + 1))
 			if [ "$recorded_branch" = "$current_branch" ]; then
 				score=$((score + 40))
 				reasons="${reasons}  reason: branch +40 the recorded branch is the branch checked out here$nl"
 			else
 				flags="${flags}  flag: different-branch recorded on $recorded_branch; here is $current_branch$nl"
-			fi
-			# Missing only when no repository that could hold it has it.
-			looked=0
-			found=0
-			if [ "$in_git" -eq 1 ]; then
-				looked=1
-				if branch_exists "$here" "$recorded_branch"; then found=1; fi
-			fi
-			if [ "$found" -eq 0 ] && [ -n "$recorded_repo_dir" ] && [ "$recorded_repo_dir" != "$here" ] &&
-				git -C "$recorded_repo_dir" rev-parse --git-dir >/dev/null 2>&1; then
-				looked=1
-				if branch_exists "$recorded_repo_dir" "$recorded_branch"; then found=1; fi
-			fi
-			if [ "$looked" -eq 1 ] && [ "$found" -eq 0 ]; then
-				flags="${flags}  flag: branch-missing the recorded branch no longer exists$nl"
 			fi
 			;;
 		default)
@@ -438,11 +450,32 @@ for folder in "$root"/*/; do
 			;;
 		esac
 
+		# A recorded branch, default or not, that no repository able to hold
+		# it still has. This is how a renamed default branch shows up.
+		case "$recorded_kind" in
+		named | default)
+			looked=0
+			found=0
+			if [ "$in_git" -eq 1 ]; then
+				looked=1
+				if branch_exists "$here" "$recorded_branch"; then found=1; fi
+			fi
+			if [ "$found" -eq 0 ] && [ -n "$recorded_repo_dir" ] && [ "$recorded_repo_dir" != "$here" ] &&
+				git -C "$recorded_repo_dir" rev-parse --git-dir >/dev/null 2>&1; then
+				looked=1
+				if branch_exists "$recorded_repo_dir" "$recorded_branch"; then found=1; fi
+			fi
+			if [ "$looked" -eq 1 ] && [ "$found" -eq 0 ]; then
+				flags="${flags}  flag: branch-missing the recorded branch no longer exists$nl"
+			fi
+			;;
+		esac
+
 		eval "c_file_$count=\$file c_stream_$count=\$stream c_repo_$count=\$recorded_repo"
 		eval "c_branch_$count=\$recorded_branch c_kind_$count=\$recorded_kind"
 		eval "c_written_$count=\$written c_written_note_$count=\$written_note c_age_text_$count=\$age_text"
 		eval "c_found_by_$count=\$found_by c_score_$count=\$score c_name_matched_$count=\$name_matched"
-		eval "c_reasons_$count=\$reasons c_flags_$count=\$flags"
+		eval "c_reasons_$count=\$reasons c_flags_$count=\$flags c_elsewhere_$count=\$elsewhere"
 	done
 done
 
@@ -450,7 +483,7 @@ done
 
 pr_rows=''
 if [ "$named_branches" -eq 0 ]; then
-	pr_check='not-needed (no candidate records a branch that could have a pull request)'
+	pr_check='not-needed (no candidate records a branch of this repository that could have a pull request)'
 elif [ "$in_git" -eq 0 ]; then
 	pr_check='not-needed (not a git repository)'
 elif ! command -v "$gh_cmd" >/dev/null 2>&1; then
@@ -465,13 +498,18 @@ fi
 index=1
 while [ "$index" -le "$count" ]; do
 	eval "kind=\$c_kind_$index branch=\$c_branch_$index flags=\$c_flags_$index"
+	eval "elsewhere=\$c_elsewhere_$index written=\$c_written_$index"
 	if [ "$kind" != named ]; then
 		pr='not-applicable'
+	elif [ "$elsewhere" -eq 1 ]; then
+		# This repository's pull requests say nothing about another one's branch.
+		pr='not-checked (recorded in another repository)'
 	elif [ "$pr_check" != checked ]; then
 		# Not checked is not the same as no pull request.
 		pr='unknown'
 	else
-		pr=$(pull_request_state "$branch")
+		[ "$written" != unknown ] || written=''
+		pr=$(pull_request_state "$branch" "$written")
 		case "$pr" in
 		merged*) flags="${flags}  flag: pr-merged the pull request for $branch is merged (${pr#merged })$nl" ;;
 		closed*) flags="${flags}  flag: pr-closed the pull request for $branch was closed without merging (${pr#closed })$nl" ;;
@@ -513,6 +551,9 @@ done
 #   ambiguous  several, and the best ones cannot be told apart
 #   none       nothing to propose
 notes=''
+if [ ! -d "$root" ]; then
+	notes="${notes}note: the store does not exist; the handoff skill creates it when it writes its first handoff$nl"
+fi
 if [ "$count" -eq 0 ]; then
 	confidence=none
 elif [ -n "$wanted" ] && [ "$name_matches" -eq 0 ]; then

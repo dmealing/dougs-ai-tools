@@ -4,7 +4,7 @@
 
 A Claude Code skill that resumes work from a handoff without you pasting a path. It finds the handoff for the checkout you are in and **shows which one it chose, why, and what else it could have chosen, before it reads anything**.
 
-It requires the [handoff](../handoff/) skill, which writes the files this one reads.
+It requires the [handoff](../handoff/) skill, which writes the files this one reads. Nothing checks that for you: with pickup installed alone, `/pickup` simply finds nothing to pick up.
 
 ## The problem
 
@@ -114,14 +114,18 @@ A flag never hides a handoff. It is printed with the candidate, and a flag on th
 |---|---|
 | `stale` | Written more than `PICKUP_STALE_DAYS` days ago (default 14). |
 | `repo-missing` | The recorded repository path no longer exists, for example a removed worktree. |
-| `branch-missing` | The recorded branch exists neither locally nor as a remote-tracking branch, in this repository or in the recorded one. |
+| `branch-missing` | The recorded branch exists neither locally nor as a remote-tracking branch, in this repository or in the recorded one. A default branch that was renamed away is flagged the same way. |
 | `different-checkout` | The recorded repository path exists and is not this checkout. The stream may belong to another worktree or clone. |
 | `different-branch` | The handoff was written on a named branch that is not the one checked out here. |
 | `pr-merged` | The pull request for the recorded branch is merged. The work may be finished; the handoff may also still hold follow-up work. |
 | `pr-closed` | The pull request for the recorded branch was closed without merging. |
 | `header-incomplete` | The file lacks a usable `**Repo:**`, `**Branch:**` or `**Written:**` value. |
 
-The pull-request flags need `gh`, installed and working, in a repository hosted on GitHub. One call is made, for the 200 most recent pull requests. When it cannot be made, the listing says `pr-check: unavailable` and each candidate shows `pr: unknown`, which is not the same as having no pull request. An open pull request is never a flag.
+The pull-request flags need `gh`, installed and working, in a repository hosted on GitHub. One call is made, for the 200 most recent pull requests of the repository you are in. When it cannot be made, the listing says `pr-check: unavailable` and each candidate shows `pr: unknown`, which is not the same as having no pull request. Three cases are never a flag:
+
+- an open pull request;
+- a pull request that was merged or closed before the handoff was written (`pr: earlier #N`): it belongs to older work on a branch name that was used again;
+- a handoff whose recorded checkout belongs to a different repository (`pr: not-checked`): this repository's pull requests say nothing about that one's branches.
 
 ## What the script prints
 
@@ -200,10 +204,10 @@ The agent turns that into:
 | `confidence:` | `single`, `clear`, `ambiguous` or `none`. |
 | `proposed:` | `1 <stream>`: the proposal is block `[1]`. Or `none`. |
 | `action:` | `load`, `ask` or `none`. |
-| `note:` | Zero or more lines that explain the confidence: a tie, or a name that matched nothing. |
+| `note:` | Zero or more lines that explain the result: a tie, a name that matched nothing, or a store that does not exist yet. |
 | `skipped:` | Zero or more files in this project's folder whose header names another project. |
 
-Each candidate block starts with `[rank] stream` and holds, indented by two spaces: `path:` (the exact file), `written:` (date, age, and a file-time label when it applies), `recorded-repo:`, `recorded-branch:`, `found-by:`, `pr:` (`open #N`, `merged #N`, `closed #N`, `none-found`, `unknown` or `not-applicable`), `score:`, then one or more `reason:` and `weak:` lines (`reason: none` when there are neither) and one or more `flag:` lines (`flag: none` when there are none).
+Each candidate block starts with `[rank] stream` and holds, indented by two spaces: `path:` (the exact file), `written:` (date, age, and a file-time label when it applies), `recorded-repo:`, `recorded-branch:`, `found-by:`, `pr:` (`open #N`, `merged #N`, `closed #N`, `earlier #N`, `none-found`, `unknown`, `not-checked (why)` or `not-applicable`), `score:`, then one or more `reason:` and `weak:` lines (`reason: none` when there are neither) and one or more `flag:` lines (`flag: none` when there are none).
 
 The script exits 0 whenever it printed a listing, including an empty one, and 2 on a usage error.
 

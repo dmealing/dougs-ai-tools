@@ -267,6 +267,11 @@ list "$store" "$checkout"
 check "missing branch: flagged" has_text "flag: branch-missing"
 check "missing branch: also flagged as another branch" has_text "flag: different-branch"
 check "missing branch: action is ask" has_line "action: ask"
+# A default branch that was renamed away is missing too.
+write_handoff "$work/store-renamed-default" foundry cooling-rack foundry "$checkout" master "$today"
+list "$work/store-renamed-default" "$checkout"
+check "missing branch: a default branch that is gone is flagged" has_text "flag: branch-missing"
+check "missing branch: and then it has to be asked about" has_line "action: ask"
 
 # --- written in another worktree of the same repository ------------------------------------
 store="$work/store-worktree"
@@ -343,6 +348,7 @@ check "empty: a missing store is said to be missing" has_line "store: $work/stor
 check "empty: confidence is none" has_line "confidence: none"
 check "empty: action is none" has_line "action: none"
 check "empty: no candidates" has_line "candidates: 0"
+check "empty: says the handoff skill creates the store" has_text "note: the store does not exist; the handoff skill creates it"
 
 # --- where the store is -----------------------------------------------------------------------------
 checkout="$work/parcel-tracker"
@@ -410,6 +416,29 @@ quiet_lines=$(grep -c . "$work/out")
 check "gh hanging: the check is given up on" has_text "pr-check: unavailable (the GitHub CLI failed"
 check "gh hanging: the listing still works" has_line "proposed: 1 fix-label-printer"
 check "gh hanging: stopping it prints nothing extra" [ "$(grep -c . "$work/out")" -eq "$quiet_lines" ]
+
+# A pull request finished before the handoff was written belongs to earlier
+# work on a branch name that was used again.
+gh=$fake_gh
+FAKE_GH_ROWS=$(printf 'MERGED\t41\tfix/label-printer\t%s\n' "$long_ago")
+list "$store" "$checkout"
+check "gh: an earlier pull request on a reused branch name is not a flag" has_line "  pr: earlier #41"
+check "gh: with only an earlier pull request it loads" has_line "action: load"
+FAKE_GH_ROWS=$(printf 'MERGED\t41\tfix/label-printer\t%s\n' "$today")
+list "$store" "$checkout"
+check "gh: a pull request merged since the handoff is flagged" has_text "flag: pr-merged"
+
+# Pull requests are this repository's. They apply to a handoff written in
+# another worktree of it, and never to one written in another repository.
+FAKE_GH_ROWS=$(printf 'MERGED\t9\tfeat/press-schedule\n')
+list "$work/store-worktree" "$work/vineyard"
+check "gh: a handoff from another worktree is checked" has_text "flag: pr-merged"
+new_repo "$work/other-repository" feat/press-schedule
+write_handoff "$work/store-other-repo" vineyard same-branch-name vineyard "$work/other-repository" feat/press-schedule "$today"
+list "$work/store-other-repo" "$work/vineyard"
+check "gh: a handoff from another repository is not checked" \
+	has_line "  pr: not-checked (recorded in another repository)"
+check "gh: and gets no pull-request flag" lacks_text "flag: pr-"
 unset FAKE_GH_ROWS FAKE_GH_FAIL
 gh=$no_gh
 

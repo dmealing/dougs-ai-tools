@@ -31,7 +31,7 @@ One command runs every tool's tests locally:
 sh tests/run.sh
 ```
 
-Each tool also carries its own, for example `sh handoff/tests/run.sh`. Code that the tools share (the install logic and the test helpers) is in `lib/`.
+Each tool also carries its own, for example `sh handoff/tests/run.sh`. Code that the tools share (the install logic, the test helpers and the test runner) is in `lib/`.
 
 ## Licence
 

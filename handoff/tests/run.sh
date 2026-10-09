@@ -8,21 +8,6 @@ set -u
 
 here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)
 
-status=0
-for test_file in "$here/test-install.sh" "$here/test-shipped-files.sh"; do
-	printf '== %s\n' "$(basename -- "$test_file")"
-	sh "$test_file" || status=1
-done
-
-if command -v shellcheck >/dev/null 2>&1; then
-	printf '== shellcheck\n'
-	if shellcheck "$here/../install.sh" "$here"/*.sh; then
-		printf 'ok   - shellcheck clean\n'
-	else
-		status=1
-	fi
-else
-	printf '== shellcheck not found; skipped\n'
-fi
-
-exit "$status"
+# shellcheck source=/dev/null
+. "$here/../../lib/run-suite.sh"
+run_suite "$here" "$here/../install.sh"
