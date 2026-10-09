@@ -47,7 +47,7 @@ fi
 # --- 3. names line up --------------------------------------------------------
 manifest="$root/.claude-plugin/plugin.json"
 marketplace="$repo/.claude-plugin/marketplace.json"
-if command -v python3 >/dev/null 2>&1; then
+if python3 -c 'import json' >/dev/null 2>&1; then
 	json_field() {
 		# json_field <file> <key> [<key>...]: print the value at that path;
 		# a list is stepped into with the key as the element index.
@@ -82,7 +82,7 @@ EOF
 	expect_json "marketplace entry points at ./handoff" ./handoff \
 		"$marketplace" plugins 0 source
 else
-	printf 'skip - python3 not found; plugin and marketplace JSON not parsed\n'
+	printf 'skip - python3 not usable; plugin and marketplace JSON not parsed\n'
 fi
 if [ "$(sed -n '1p' "$skill")" = "---" ] && grep -qx 'name: handoff' "$skill"; then
 	pass "skill front matter names the skill handoff"
