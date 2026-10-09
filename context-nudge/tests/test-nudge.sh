@@ -201,6 +201,9 @@ check "no notice between configured bands" silent
 at c 76
 prompt c "" CONTEXT_NUDGE_BANDS='20,30 75' CONTEXT_NUDGE_LABEL_HIGH=hot
 check "labels in the notice are configurable" says "76% used (152k of 200k tokens) - hot\\."
+at e 81
+prompt e "" CONTEXT_NUDGE_HIGH_AT=82
+check "the advice never runs ahead of the label" says "filling. Finish what is open"
 at c 78
 prompt c "" CONTEXT_NUDGE_BANDS='20,30 75' CONTEXT_NUDGE_REPEAT_AT=78
 check "a lower every-prompt threshold speaks" spoke 78
@@ -241,6 +244,15 @@ check "a stated window size and no transcript: silent" silent
 status_json unknown null null null | sh "$cache" >/dev/null
 prompt unknown "$fixtures/transcript.jsonl"
 check "a record with no percentage: silent" silent
+prompt unknown "$fixtures/transcript.jsonl" CONTEXT_NUDGE_WINDOW_SIZE=200000
+check "a record with no percentage does not block the transcript" spoke 45
+(
+	unset CLAUDE_CONFIG_DIR HOME
+	sh "$cache" <"$fixtures/statusline.json" >"$work/out" 2>"$work/err"
+)
+check "with no config directory and no HOME the cache writer still passes through" \
+	cmp -s "$fixtures/statusline.json" "$work/out"
+check "and reports no error" [ ! -s "$work/err" ]
 
 # --- input the hook cannot use ------------------------------------------------------------------
 printf 'not json' | sh "$hook" >"$work/out" 2>"$work/err"

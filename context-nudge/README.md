@@ -147,7 +147,7 @@ Every setting is an environment variable. Set them where Claude Code will pass t
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude Code's own variable. The tool's files go in the `context-nudge` folder under it. |
 | `NO_COLOR` | not set | Set it to any value for a status line without colour. |
 
-The bands decide **when** the hook speaks. The wording follows the percentage: the steps are at 60, `CONTEXT_NUDGE_HIGH_AT`, 80, 85 and `CONTEXT_NUDGE_REPEAT_AT`. A value that is not a whole number is ignored and the default is used.
+The bands decide **when** the hook speaks. The wording follows the percentage and never runs ahead of the label: it steps at 60 while the label is `filling`, at `CONTEXT_NUDGE_HIGH_AT`, at 80 and 85 while the label is `high`, and at `CONTEXT_NUDGE_REPEAT_AT`. A value that is not a whole number is ignored and the default is used.
 
 Set the same values for the hook and the status line, or the two will label one percentage differently. Setting them in one place, as above, does that.
 
@@ -189,7 +189,7 @@ Once a day the hook deletes `.usage` and `.band` files that have not been writte
 ## Limits
 
 - **The status-line half is required for an accurate percentage.** With only the hook installed, the hook is silent. It will not guess a window size: a 200,000-token guess is wrong by a factor of five on a 1,000,000-token model.
-- **The transcript fallback is a best effort.** If there is no status-line record and you set `CONTEXT_NUDGE_WINDOW_SIZE`, the hook reads the token usage of the last reply from the transcript file named by `transcript_path`. The path is documented; the layout of the lines inside the file is not, and may change. The transcript can also lag the live conversation. When the hook finds no usage there it stays silent.
+- **The transcript fallback is a best effort.** If there is no status-line record, or the record holds no percentage yet, and you set `CONTEXT_NUDGE_WINDOW_SIZE`, the hook reads the token usage of the last reply from the transcript file named by `transcript_path`. The path is documented; the layout of the lines inside the file is not, and may change. The transcript can also lag the live conversation. When the hook finds no usage there it stays silent.
 - **The reading is from the last reply, not the current prompt.** The status line refreshes after each reply, so the hook sees the window as it stood before the prompt you are submitting.
 - **A notice is advice.** The tool never stops a prompt, never compacts and never writes a handoff. The model is told not to treat the notice as an instruction, and a model can still over-react to it.
 - **The model's notice is not shown in the transcript.** Claude Code adds it to the model's context without a visible entry; what you see is the one-line message.

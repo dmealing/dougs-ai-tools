@@ -47,6 +47,7 @@ EOF
 
 # Without a session id a repeat cannot be told from a first sighting.
 cn_safe_id "${sid:-}" || exit 0
+[ -n "$cn_dir" ] || exit 0
 mkdir -p "$cn_dir" 2>/dev/null || exit 0
 
 # --- once a day: prune old files, refresh the plugin's script copies ---------
@@ -73,7 +74,7 @@ fi
 
 # --- how full is the window? ---------------------------------------------------
 if ! cn_read_cache "$sid"; then
-	# No status-line record. The transcript gives a token count but not the
+	# No status-line record, or one with no percentage in it. The transcript gives a token count but not the
 	# window size, and a guessed size gives a wrong percentage.
 	cn_is_uint "${CONTEXT_NUDGE_WINDOW_SIZE:-}" || exit 0
 	cn_number "$CONTEXT_NUDGE_WINDOW_SIZE" 0
@@ -121,15 +122,18 @@ printf '%s\n' "$band" >"$state" 2>/dev/null || :
 
 # --- the two messages ----------------------------------------------------------
 # The wording follows the percentage, so a custom band list changes when the
-# hook speaks and not what it says at a given level.
+# hook speaks and not what it says at a given level. It steps up inside each
+# label, never ahead of it, so the label and the advice cannot disagree.
 if [ "$cn_pct" -ge "$cn_repeat" ]; then
 	advice='Stop starting new work. Land or park what is open now, then hand off or compact.'
-elif [ "$cn_pct" -ge 85 ]; then
-	advice='Land what is in flight and move to a fresh session soon: hand off or compact.'
-elif [ "$cn_pct" -ge 80 ]; then
-	advice='Quality over a window this full is likely dropping. Wrap up the current thread, then hand off or compact.'
 elif [ "$cn_pct" -ge "$cn_high" ]; then
-	advice='At the next clean break, consider a fresh session: hand off or compact.'
+	if [ "$cn_pct" -ge 85 ]; then
+		advice='Land what is in flight and move to a fresh session soon: hand off or compact.'
+	elif [ "$cn_pct" -ge 80 ]; then
+		advice='Quality over a window this full is likely dropping. Wrap up the current thread, then hand off or compact.'
+	else
+		advice='At the next clean break, consider a fresh session: hand off or compact.'
+	fi
 elif [ "$cn_pct" -ge 60 ]; then
 	advice='Finish what is open before starting something new.'
 else

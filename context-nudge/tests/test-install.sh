@@ -99,6 +99,7 @@ check "--uninstall restores the settings content" \
 	[ "$(jq -S -c . "$cfg/settings.json")" = "$(jq -S -c . "$work/before")" ]
 check "--uninstall removes the scripts" none_installed "$cfg/context-nudge/bin"
 check "--uninstall removes the empty tool folder" [ ! -d "$cfg/context-nudge" ]
+check "--uninstall leaves the rest of the config directory" [ -f "$cfg/settings.json" ]
 
 # --- --uninstall leaves entries it did not write ---------------------------------
 cfg="$work/by-hand"

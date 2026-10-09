@@ -11,7 +11,15 @@
 # The scripts that source this file read the names it sets.
 # shellcheck disable=SC2034
 
-cn_dir="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}/context-nudge"
+# Empty when neither variable says where the configuration is: the scripts then
+# record and announce nothing, instead of writing under the root folder.
+if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+	cn_dir="$CLAUDE_CONFIG_DIR/context-nudge"
+elif [ -n "${HOME:-}" ]; then
+	cn_dir="$HOME/.claude/context-nudge"
+else
+	cn_dir=''
+fi
 cn_jq=${CONTEXT_NUDGE_JQ:-jq}
 
 cn_have_jq() { command -v "$cn_jq" >/dev/null 2>&1; }
@@ -150,6 +158,7 @@ EOF
 cn_record() {
 	cn_parse_usage "$1" || return 0
 	cn_safe_id "$cn_sid" || return 0
+	[ -n "$cn_dir" ] || return 0
 	mkdir -p "$cn_dir" 2>/dev/null || return 0
 	cn_tmp="$cn_dir/$cn_sid.$$.tmp"
 	# Written whole and then renamed: Claude Code cancels a status-line run
@@ -161,15 +170,16 @@ cn_record() {
 }
 
 # cn_read_cache <session id>: sets $cn_pct, $cn_tokens and $cn_size from the
-# file cn_record wrote. Fails when there is no file.
+# file cn_record wrote. Fails when there is no file, or the file holds no
+# percentage.
 cn_read_cache() {
 	cn_pct=''
 	cn_tokens=''
 	cn_size=''
-	[ -r "$cn_dir/$1.usage" ] || return 1
+	[ -n "$cn_dir" ] && [ -r "$cn_dir/$1.usage" ] || return 1
 	read -r cn_pct cn_tokens cn_size <"$cn_dir/$1.usage" || :
 	cn_is_uint "$cn_pct" || cn_pct=''
 	cn_is_uint "$cn_tokens" || cn_tokens=''
 	cn_is_uint "$cn_size" || cn_size=''
-	return 0
+	[ -n "$cn_pct" ]
 }
