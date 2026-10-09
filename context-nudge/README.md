@@ -17,11 +17,23 @@ On each prompt you submit, the hook looks up how full the window is and decides 
 - **From the every-prompt threshold it speaks on every prompt.** At that level the repetition is the point.
 - **The wording gets firmer as the percentage rises.**
 
-The notice to the model says plainly that it is a readout for you, that on its own it is not an instruction to stop work or to write a handoff, and that the model may offer to hand off or compact in a single line and then wait for your answer. Without that, a model reads a repeated warning as an order and wraps up work nobody asked it to wrap up.
+The two messages differ on purpose. Yours carries the reading and the advice. The model's is one sentence of fact with no instruction in it: the reading, that it is a readout for you and not an instruction to stop work or to write a handoff, and that a single-line offer to hand off or compact, followed by waiting for your answer, is the most it calls for. A model that is handed advice reads a repeated warning as an order and wraps up work nobody asked it to wrap up.
+
+For example, at 62 percent you see
+
+```
+Context 62% used (124k of 200k tokens) - filling. Finish what is open before starting something new.
+```
+
+and the model's context gets
+
+```
+CONTEXT NUDGE: the context window is 62% used (124k of 200k tokens) - filling; this is a status readout for the user, not an instruction to stop work or to write a handoff, and one single-line offer to hand off or compact (the user may have the optional /handoff skill), followed by waiting for the answer, is the most it calls for.
+```
 
 ### Default bands and messages
 
-Each message starts with the reading, for example `Context 62% used (124k of 200k tokens) - filling.` The rest depends on the percentage:
+The message you see starts with the reading. The rest depends on the percentage:
 
 | Band | Label | Spoken | Message after the reading |
 |---|---|---|---|
@@ -51,6 +63,8 @@ Requirements: Claude Code, a POSIX shell and [`jq`](https://jqlang.org/), on mac
 
 ## Install
 
+**Either way there are two things to set up: the prompt hook and the status-line half. The plugin delivers the hook only.** A Claude Code plugin cannot register a status line, so after installing the plugin you add one line to your settings by hand. Until you do, the hook has nothing to read and stays silent; it never reports a guessed figure.
+
 Pick one way, not both, or the hook runs twice.
 
 ### As a Claude Code plugin
@@ -62,7 +76,7 @@ claude plugin install context-nudge@dougs-ai-tools
 
 Inside a session, the same two steps are `/plugin marketplace add dmealing/dougs-ai-tools` and `/plugin install context-nudge@dougs-ai-tools`.
 
-The plugin registers the prompt hook itself. A plugin cannot set your status line, so add that half by hand. Submit one prompt first: on its first run the hook copies the status-line scripts to `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/context-nudge/bin/`, a path that stays the same when the plugin is updated, and refreshes the copies once a day. Then add one of these to `~/.claude/settings.json`.
+The plugin registers the prompt hook itself, and nothing else. Add the status-line half by hand. Submit one prompt first: on its first run the hook copies the status-line scripts to `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/context-nudge/bin/`, a path that stays the same when the plugin is updated, and refreshes the copies once a day. Then add one of these to `~/.claude/settings.json`.
 
 If you have no status line:
 
@@ -142,7 +156,8 @@ Every setting is an environment variable. Set them where Claude Code will pass t
 | `CONTEXT_NUDGE_LABEL_FILLING` | `filling` | The label from the first band. |
 | `CONTEXT_NUDGE_LABEL_HIGH` | `high` | The label from `CONTEXT_NUDGE_HIGH_AT`. |
 | `CONTEXT_NUDGE_LABEL_CRITICAL` | `critical` | The label from `CONTEXT_NUDGE_REPEAT_AT`. |
-| `CONTEXT_NUDGE_WINDOW_SIZE` | not set | The context window size in tokens. Used only when no status-line record exists; see [Limits](#limits). |
+| `CONTEXT_NUDGE_MAX_AGE` | `3600` | The age in seconds beyond which a status-line record is ignored, so an out-of-date figure is never reported. `0` turns the check off. See [How the percentage is worked out](#how-the-percentage-is-worked-out). |
+| `CONTEXT_NUDGE_WINDOW_SIZE` | not set | The context window size in tokens. Used only when there is no usable status-line record; see [Limits](#limits). |
 | `CONTEXT_NUDGE_JQ` | `jq` | The `jq` to run. Give a full path when Claude Code's `PATH` does not include it. `install.sh --write-settings` reads it too. |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude Code's own variable. The tool's files go in the `context-nudge` folder under it. |
 | `NO_COLOR` | not set | Set it to any value for a status line without colour. |
@@ -155,9 +170,11 @@ Set the same values for the hook and the status line, or the two will label one 
 
 The status line and the hook cannot disagree: one function works the percentage out from the status-line JSON, the status line prints its result and the hook reads the same result from the file.
 
-- When Claude Code reports `context_window.used_percentage`, that number is used, rounded down.
+- When Claude Code reports `context_window.used_percentage`, that number is used, rounded down. It is read by that full path: the status-line input has other fields named `used_percentage`, under `rate_limits`, and those are never read.
 - When it does not (it can be `null` early in a session), the percentage is `context_window.total_input_tokens` divided by `context_window.context_window_size`. Claude Code documents its own percentage as input tokens only, so the two agree.
 - When neither can be worked out, the percentage is unknown: the status line shows `context --` and the hook is silent.
+
+The record carries the time it was written, and the hook ignores one older than `CONTEXT_NUDGE_MAX_AGE` seconds. The status line writes it after every reply, and the window does not change between a reply and your next prompt, so a record is normally exact however long you take to type. It goes out of date only when the status line has stopped running while the session went on, for example because the status-line half was removed. The default of one hour is long enough for a pause to read or think and short enough that a figure from an earlier sitting is not reported. A prompt sent after a longer pause gets no notice; the one after it does, because the reply refreshes the record.
 
 These are the fields the tool depends on, as named in the Claude Code documentation for [hooks](https://code.claude.com/docs/en/hooks) and the [status line](https://code.claude.com/docs/en/statusline):
 
@@ -171,7 +188,7 @@ These are the fields the tool depends on, as named in the Claude Code documentat
 | Hook input | `session_id` | Finds the session's files. |
 | Hook input | `transcript_path` | The transcript, read only when no status-line record exists. |
 | Hook output | `systemMessage` | The message you see. |
-| Hook output | `hookSpecificOutput.additionalContext` | The notice the model sees, with `hookSpecificOutput.hookEventName` set to `UserPromptSubmit`. |
+| Hook output | `hookSpecificOutput.additionalContext` | The sentence the model sees, with `hookSpecificOutput.hookEventName` set to `UserPromptSubmit`. |
 
 ## Files
 
@@ -179,20 +196,24 @@ Everything is under `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/context-nudge/`:
 
 | File | Written by | Holds |
 |---|---|---|
-| `<session>.usage` | the status-line half | The session's percentage, token count and window size. |
+| `<session>.usage` | the status-line half | The session's percentage, token count and window size, and when they were written. |
 | `<session>.band` | the hook | The highest band already announced in the session. |
 | `bin/` | `install.sh`, or the hook when run as a plugin | The scripts. |
 | `settings-written` | `install.sh --write-settings` | Which settings entries it added, so `--uninstall` removes only those. |
+
+A session id is used as a file name only when it is made of letters, digits, dots, hyphens and underscores and does not start with a dot; with any other id the scripts write and say nothing.
 
 Once a day the hook deletes `.usage` and `.band` files that have not been written for 30 days, so the folder does not grow without bound. A new session has a new id, so `/clear` starts the bands again.
 
 ## Limits
 
 - **The status-line half is required for an accurate percentage.** With only the hook installed, the hook is silent. It will not guess a window size: a 200,000-token guess is wrong by a factor of five on a 1,000,000-token model.
-- **The transcript fallback is a best effort.** If there is no status-line record, or the record holds no percentage yet, and you set `CONTEXT_NUDGE_WINDOW_SIZE`, the hook reads the token usage of the last reply from the transcript file named by `transcript_path`. The path is documented; the layout of the lines inside the file is not, and may change. The transcript can also lag the live conversation. When the hook finds no usage there it stays silent.
+- **Headless mode has no status line.** In a non-interactive run (`claude -p`) nothing writes the record, so the hook is silent there unless you use the transcript fallback below.
+- **The hook runs on every submitted prompt, typed or not.** A scheduled or looped prompt, and a sub-agent's result returning to the conversation, can each trigger it, so a notice can appear when nobody is at the keyboard.
+- **The transcript fallback is a best effort.** If there is no status-line record, or the record is too old or holds no percentage yet, and you set `CONTEXT_NUDGE_WINDOW_SIZE`, the hook reads the token usage of the last reply from the transcript file named by `transcript_path`. The path is documented; the layout of the lines inside the file is not, and may change. The transcript can also lag the live conversation. When the hook finds no usage there it stays silent.
 - **The reading is from the last reply, not the current prompt.** The status line refreshes after each reply, so the hook sees the window as it stood before the prompt you are submitting.
-- **A notice is advice.** The tool never stops a prompt, never compacts and never writes a handoff. The model is told not to treat the notice as an instruction, and a model can still over-react to it.
-- **The model's notice is not shown in the transcript.** Claude Code adds it to the model's context without a visible entry; what you see is the one-line message.
+- **A notice is advice.** The tool never stops a prompt, never compacts and never writes a handoff. The model's sentence says it is not an instruction, and a model can still over-react to it.
+- **The model's sentence is not shown in the transcript.** Claude Code adds it to the model's context without a visible entry; what you see is the one-line message.
 - **Subagents are not measured.** The reading is the main conversation's.
 - **Claude Code only.** Other agents have different hooks and are not supported.
 - **Uninstalling the plugin leaves the `context-nudge` folder** with its script copies and per-session files. Delete it by hand.
@@ -203,7 +224,7 @@ Once a day the hook deletes `.usage` and `.band` files that have not been writte
 sh context-nudge/tests/run.sh
 ```
 
-The path above is from the repository root; the script itself runs from anywhere. It feeds sample hook and status-line input (in `tests/fixtures/`) to the scripts and checks the silences, the one notice per band, the repeats, the settings, that the hook and the status line give the same percentage, the cases with no record, a missing `jq` and the pruning. It tests `install.sh` against a throwaway directory, checks the shipped files for absolute home paths and for shell that stock macOS lacks, and runs `shellcheck` when it is installed.
+The path above is from the repository root; the script itself runs from anywhere. It feeds sample hook and status-line input (in `tests/fixtures/`) to the scripts and checks the silences, the one notice per band, the repeats, the settings, that the hook and the status line give the same percentage, the cases with no record, a stale record, a missing `jq` and the pruning. It tests `install.sh` against a throwaway directory, checks the shipped files for absolute home paths and for shell that stock macOS lacks, and runs `shellcheck` when it is installed.
 
 ## Related
 

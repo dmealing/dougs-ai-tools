@@ -24,7 +24,8 @@ trap 'rm -rf "$work"' EXIT INT TERM
 # Settings from the caller's environment must not reach the cases.
 unset CONTEXT_NUDGE_BANDS CONTEXT_NUDGE_REPEAT_AT CONTEXT_NUDGE_HIGH_AT \
 	CONTEXT_NUDGE_LABEL_OK CONTEXT_NUDGE_LABEL_FILLING CONTEXT_NUDGE_LABEL_HIGH \
-	CONTEXT_NUDGE_LABEL_CRITICAL CONTEXT_NUDGE_WINDOW_SIZE CONTEXT_NUDGE_JQ
+	CONTEXT_NUDGE_LABEL_CRITICAL CONTEXT_NUDGE_WINDOW_SIZE CONTEXT_NUDGE_JQ \
+	CONTEXT_NUDGE_MAX_AGE
 CLAUDE_CONFIG_DIR="$work/cfg"
 NO_COLOR=1
 export CLAUDE_CONFIG_DIR NO_COLOR
@@ -81,22 +82,48 @@ model_notice() { jq -r '.hookSpecificOutput.additionalContext' "$work/out" 2>/de
 says() { user_message | grep -q -- "$1"; }
 tells_model() { model_notice | grep -q -- "$1"; }
 user_not_told() { ! says "$1"; }
+model_not_told() { ! grep -q -- "$1" "$work/notice"; }
+# recorded <session>: the percentage, tokens and window size on record.
+recorded() { cut -d' ' -f1-3 "$dir/$1.usage"; }
 coloured() { (unset NO_COLOR && sh "$line" <"$fixtures/statusline.json" | grep -q '\[33m42% context'); }
 # spoke <percentage>: one notice, to both the user and the model, for it.
 spoke() {
 	[ "$status" -eq 0 ] && [ ! -s "$work/err" ] && says "Context $1% used" &&
-		model_notice | grep -q "CONTEXT NUDGE: Context $1% used" &&
+		model_notice | grep -q "CONTEXT NUDGE: the context window is $1% used" &&
 		[ "$(jq -r '.hookSpecificOutput.hookEventName' "$work/out")" = UserPromptSubmit ]
 }
 
 # --- the cache writer ------------------------------------------------------------
 sh "$cache" <"$fixtures/statusline.json" >"$work/out" 2>&1
 check "cache writer passes its input through unchanged" cmp -s "$fixtures/statusline.json" "$work/out"
-check "cache writer records the session's usage" [ "$(cat "$dir/sample-session-0001.usage")" = "42 84000 200000" ]
+check "cache writer records the session's usage" [ "$(recorded sample-session-0001)" = "42 84000 200000" ]
 printf 'not json' | sh "$cache" >"$work/out" 2>&1
 check "cache writer passes through input that is not JSON" [ "$(cat "$work/out")" = "not json" ]
 status_json '../escape' 50 | sh "$cache" >/dev/null 2>&1
 check "a session id with a path in it is not used as a file name" [ ! -e "$CLAUDE_CONFIG_DIR/escape.usage" ]
+for bad in '..' '.' '.hidden' 'a/b' 'a b' ''; do
+	before=$(find "$work" | wc -l)
+	status_json "$bad" 95 | sh "$cache" >/dev/null 2>&1
+	jq --arg sid "$bad" '.session_id = $sid' "$fixtures/hook-input.json" | sh "$hook" >"$work/out" 2>&1
+	if [ "$(find "$work" | wc -l)" -eq "$before" ] && [ ! -s "$work/out" ]; then
+		pass "session id '$bad' is rejected: nothing written, nothing said"
+	else
+		fail "session id '$bad' was used"
+	fi
+done
+status_json ok.id_1-A 95 | sh "$cache" >/dev/null 2>&1
+check "a session id of letters, digits, dots, hyphens and underscores is used" [ -f "$dir/ok.id_1-A.usage" ]
+
+# --- only the context window's own percentage is read ------------------------------
+# rate_limits holds other fields named used_percentage.
+limits='{"five_hour": {"used_percentage": 77, "resets_at": 1}, "seven_day": {"used_percentage": 88, "resets_at": 2}}'
+check "a rate-limit percentage is not taken for the context percentage" \
+	[ "$(status_json rl 12 | jq --argjson limits "$limits" '.rate_limits = $limits' | sh "$line")" = "Opus | 12% context | ok" ]
+check "a null context percentage is unknown, whatever rate_limits says" \
+	[ "$(status_json rl null null null | jq --argjson limits "$limits" '.rate_limits = $limits' | sh "$line")" = "Opus | context --" ]
+check "and nothing is recorded as its percentage" [ "$(recorded rl)" = "- 84000 -" ]
+check "a percentage that is not a number is unknown" \
+	[ "$(status_json rl '"77"' 0 null | sh "$line")" = "Opus | context --" ]
 
 # --- the status line ---------------------------------------------------------------
 check "status line shows model, percentage and label" \
@@ -109,7 +136,7 @@ check "status line at the every-prompt threshold" \
 	[ "$(status_json line-a 93 | sh "$line")" = "Opus | 93% context | critical" ]
 check "status line with no usage yet" \
 	[ "$(jq '.context_window = null' "$fixtures/statusline.json" | sh "$line")" = "Opus | context --" ]
-check "status line records usage as the cache writer does" [ "$(cat "$dir/line-a.usage")" = "93 186000 200000" ]
+check "status line records usage as the cache writer does" [ "$(recorded line-a)" = "93 186000 200000" ]
 check "status line labels are configurable" \
 	[ "$(status_json line-a 45 | CONTEXT_NUDGE_LABEL_FILLING=warm sh "$line")" = "Opus | 45% context | warm" ]
 check "status line colours unless NO_COLOR is set" \
@@ -128,14 +155,17 @@ at s1 40
 prompt s1
 check "speaks on entering the first band" spoke 40
 check "the first notice is mild" says "filling. Still fine"
+model_notice >"$work/notice"
 check "the notice gives the token counts" says "(80k of 200k tokens)"
 check "the model is told the notice is not an instruction to stop or hand off" \
-	tells_model "not an instruction to stop work, and it is not an instruction to write a handoff"
+	tells_model "a status readout for the user, not an instruction to stop work or to write a handoff"
 check "the model is told it may offer once and wait" \
-	tells_model "offer to hand off or compact in a single line, then wait"
+	tells_model "one single-line offer to hand off or compact"
 check "the handoff skill is named only as optional" \
-	tells_model "If the optional handoff skill is installed"
+	tells_model "the user may have the optional /handoff skill"
 check "the user message does not name /handoff" user_not_told /handoff
+check "the advice goes to the user only" model_not_told "Still fine"
+check "the model's notice is one sentence" [ "$(tr -cd '.!?' <"$work/notice" | wc -c | tr -d ' ')" -eq 1 ]
 prompt s1
 check "silent on the next prompt in the same band" silent
 at s1 47
@@ -231,6 +261,38 @@ agree "the reported percentage wins over the token counts" a2 42 150000 200000 4
 agree "a fractional percentage is rounded down by both" a3 41.9 84000 200000 41
 agree "with none reported, both use tokens over window size" a4 null 130000 200000 65
 agree "a larger window gives the matching percentage" a5 null 450000 1000000 45
+
+# --- a record that is too old ------------------------------------------------------------
+# age <session> <seconds>: makes the session's record that many seconds old.
+age() {
+	read -r a_pct a_tokens a_size a_written <"$dir/$1.usage"
+	printf '%s %s %s %s\n' "$a_pct" "$a_tokens" "$a_size" "$((a_written - $2))" >"$dir/$1.usage"
+}
+at stale 65
+age stale 3500
+prompt stale
+check "a record under an hour old is used" spoke 65
+at stale2 65
+age stale2 3700
+prompt stale2
+check "a record over an hour old is ignored" silent
+check "an ignored record announces no band" [ ! -e "$dir/stale2.band" ]
+prompt stale2 "" CONTEXT_NUDGE_MAX_AGE=7200
+check "the age limit is configurable" spoke 65
+at stale3 65
+age stale3 100
+prompt stale3 "" CONTEXT_NUDGE_MAX_AGE=60
+check "a shorter age limit ignores a younger record" silent
+age stale3 999999
+prompt stale3 "" CONTEXT_NUDGE_MAX_AGE=0
+check "an age limit of 0 turns the check off" spoke 65
+printf '65 130000 200000\n' >"$dir/undated.usage"
+prompt undated
+check "a record with no time in it is ignored" silent
+at stale4 65
+age stale4 3700
+prompt stale4 "$fixtures/transcript.jsonl" CONTEXT_NUDGE_WINDOW_SIZE=200000
+check "an old record gives way to the transcript when the window size is stated" spoke 45
 
 # --- no status-line record ------------------------------------------------------------------
 prompt nocache "$fixtures/transcript.jsonl"

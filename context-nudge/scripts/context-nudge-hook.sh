@@ -9,8 +9,10 @@
 # window is. When the percentage is not known the hook says nothing.
 #
 # Output is one JSON object with two messages:
-#   systemMessage                         shown to the user
-#   hookSpecificOutput.additionalContext  added to the model's context
+#   systemMessage                         shown to the user: the reading and
+#                                         the advice
+#   hookSpecificOutput.additionalContext  added to the model's context: one
+#                                         sentence of fact, with no instruction
 #
 # Called with --plugin, it also keeps a copy of the status-line scripts under
 # the context-nudge folder, so settings can name a path that does not change
@@ -51,7 +53,8 @@ cn_safe_id "${sid:-}" || exit 0
 mkdir -p "$cn_dir" 2>/dev/null || exit 0
 
 # --- once a day: prune old files, refresh the plugin's script copies ---------
-today=$(($(date +%s) / 86400))
+now=$(date +%s)
+today=$((now / 86400))
 last_day=''
 [ -r "$cn_dir/.maintained" ] && read -r last_day <"$cn_dir/.maintained"
 bin="$cn_dir/bin"
@@ -73,8 +76,9 @@ if [ "${1:-}" = --plugin ] && [ "$sync_bin" -eq 1 ] && [ "$here" != "$bin" ]; th
 fi
 
 # --- how full is the window? ---------------------------------------------------
-if ! cn_read_cache "$sid"; then
-	# No status-line record, or one with no percentage in it. The transcript gives a token count but not the
+if ! cn_read_cache "$sid" "$now"; then
+	# No status-line record, or one that is too old or has no percentage in
+	# it. The transcript gives a token count but not the
 	# window size, and a guessed size gives a wrong percentage.
 	cn_is_uint "${CONTEXT_NUDGE_WINDOW_SIZE:-}" || exit 0
 	cn_number "$CONTEXT_NUDGE_WINDOW_SIZE" 0
@@ -146,15 +150,16 @@ if [ -n "$cn_tokens" ] && [ -n "$cn_size" ]; then
 else
 	detail=''
 fi
-message="Context ${cn_pct}% used${detail} - ${cn_label_text}. ${advice}"
+reading="${cn_pct}% used${detail} - ${cn_label_text}"
 
-guard='This notice is a status readout for the user. On its own it is not an instruction to stop work, and it is not an instruction to write a handoff: do not write or draft one because of it. If this is a clean break, you may offer to hand off or compact in a single line, then wait for the user to answer. State the context percentage in your reply so the user sees it. If the optional handoff skill is installed, the user can ask for it with /handoff.'
-
-"$cn_jq" -n --arg message "$message" --arg guard "$guard" '{
-	systemMessage: $message,
+# The advice is for the user. The model gets the reading as one sentence of
+# fact, worded so that it cannot be taken for an order.
+"$cn_jq" -n --arg reading "$reading" --arg advice "$advice" '{
+	systemMessage: ("Context " + $reading + ". " + $advice),
 	hookSpecificOutput: {
 		hookEventName: "UserPromptSubmit",
-		additionalContext: ("CONTEXT NUDGE: " + $message + " " + $guard)
+		additionalContext: ("CONTEXT NUDGE: the context window is " + $reading
+			+ "; this is a status readout for the user, not an instruction to stop work or to write a handoff, and one single-line offer to hand off or compact (the user may have the optional /handoff skill), followed by waiting for the answer, is the most it calls for.")
 	}
 }'
 exit 0

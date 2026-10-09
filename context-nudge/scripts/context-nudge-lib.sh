@@ -44,7 +44,9 @@ cn_number() {
 	done
 }
 
-# cn_safe_id <session id>: usable as a file name, with no path in it.
+# cn_safe_id <session id>: usable as a file name. Letters, digits, dots,
+# hyphens and underscores only, and no leading dot, so it can hold no path
+# separator and cannot be "." or "..". Check it before building any path.
 cn_safe_id() {
 	case "${1:-}" in '' | .* | *[!A-Za-z0-9._-]*) return 1 ;; esac
 }
@@ -109,7 +111,8 @@ cn_label() {
 # name; "-" stands for a value that is not known.
 #
 # The percentage is context_window.used_percentage when Claude Code reports
-# it. Otherwise it is context_window.total_input_tokens over
+# it; the field is read by that full path, because rate_limits holds other
+# fields with the same name, and null means not known. Otherwise it is context_window.total_input_tokens over
 # context_window.context_window_size, the same input-only count the reported
 # percentage is documented to use.
 # The jq program is literal text; nothing in it is for the shell to expand.
@@ -163,21 +166,30 @@ cn_record() {
 	cn_tmp="$cn_dir/$cn_sid.$$.tmp"
 	# Written whole and then renamed: Claude Code cancels a status-line run
 	# that is still going when the next one starts.
-	if printf '%s %s %s\n' "${cn_pct:--}" "${cn_tokens:--}" "${cn_size:--}" >"$cn_tmp" 2>/dev/null; then
+	# The time is kept in the file because reading a file's age is not portable.
+	if printf '%s %s %s %s\n' "${cn_pct:--}" "${cn_tokens:--}" "${cn_size:--}" "$(date +%s)" \
+		>"$cn_tmp" 2>/dev/null; then
 		mv -f "$cn_tmp" "$cn_dir/$cn_sid.usage" 2>/dev/null || rm -f "$cn_tmp" 2>/dev/null
 	fi
 	return 0
 }
 
-# cn_read_cache <session id>: sets $cn_pct, $cn_tokens and $cn_size from the
-# file cn_record wrote. Fails when there is no file, or the file holds no
-# percentage.
+# cn_read_cache <session id> <now, in epoch seconds>: sets $cn_pct, $cn_tokens
+# and $cn_size from the file cn_record wrote. Fails when there is no file, the
+# file holds no percentage, or it was written more than
+# CONTEXT_NUDGE_MAX_AGE seconds ago (0 turns the age check off): a figure that
+# old may no longer be true, and no figure is better than a wrong one.
 cn_read_cache() {
 	cn_pct=''
 	cn_tokens=''
 	cn_size=''
 	[ -n "$cn_dir" ] && [ -r "$cn_dir/$1.usage" ] || return 1
-	read -r cn_pct cn_tokens cn_size <"$cn_dir/$1.usage" || :
+	read -r cn_pct cn_tokens cn_size cn_written <"$cn_dir/$1.usage" || :
+	cn_number "${CONTEXT_NUDGE_MAX_AGE:-}" 3600
+	if [ "$cn_value" -gt 0 ]; then
+		cn_is_uint "${cn_written:-}" && cn_is_uint "${2:-}" || return 1
+		[ $(($2 - cn_written)) -le "$cn_value" ] || return 1
+	fi
 	cn_is_uint "$cn_pct" || cn_pct=''
 	cn_is_uint "$cn_tokens" || cn_tokens=''
 	cn_is_uint "$cn_size" || cn_size=''
