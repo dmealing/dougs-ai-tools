@@ -1,0 +1,13 @@
+{
+  "name": "handoff",
+  "displayName": "Handoff",
+  "version": "0.1.0",
+  "description": "Write one Markdown file at the end of a coding session so a fresh session can continue the work: dead ends, misleading signals, state in flight, remaining work and the reasons behind decisions.",
+  "author": {
+    "name": "dmealing"
+  },
+  "homepage": "https://github.com/dmealing/dougs-ai-tools/tree/main/handoff",
+  "repository": "https://github.com/dmealing/dougs-ai-tools",
+  "license": "Apache-2.0",
+  "keywords": ["handoff", "session", "context", "continuity"]
+}

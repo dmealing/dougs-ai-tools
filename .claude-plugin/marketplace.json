@@ -1,0 +1,14 @@
+{
+  "name": "dougs-ai-tools",
+  "description": "Small, independent tools for Claude Code and similar coding agents.",
+  "owner": {
+    "name": "dmealing"
+  },
+  "plugins": [
+    {
+      "name": "handoff",
+      "source": "./handoff",
+      "description": "Write one Markdown file at the end of a coding session so a fresh session can continue the work."
+    }
+  ]
+}

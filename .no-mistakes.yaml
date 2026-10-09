@@ -1,0 +1,6 @@
+# Commands the validation pipeline runs for this repository.
+# Hosted CI is not set up here, so this runs locally.
+# The test command also runs shellcheck over the shell scripts, so there is
+# no separate lint command.
+commands:
+  test: 'sh handoff/tests/run.sh'
