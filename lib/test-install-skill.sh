@@ -6,11 +6,21 @@
 #   skill_name   the skill's folder name, for example handoff
 #   skill_src    the directory that holds the shipped files
 #   skill_files  the file names install.sh installs, separated by spaces
+# and may set these, for a tool that installs something other than a skill:
+#   dest_subdir   where the files go under the config directory; the default
+#                 is skills/<skill_name>
+#   install_noun  the word --help puts after the name; the default is skill
+#   keep_subdir   a folder under the config directory that --uninstall must
+#                 leave in place; the default is skills
 #
 # Every case runs against a throwaway config directory, so nothing under the
 # real Claude Code configuration is touched.
 
 # shellcheck disable=SC2154
+
+dest_subdir=${dest_subdir:-skills/$skill_name}
+install_noun=${install_noun:-skill}
+keep_subdir=${keep_subdir:-skills}
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/$skill_name-install-test.XXXXXX") || exit 1
 trap 'rm -rf "$work"' EXIT INT TERM
@@ -51,7 +61,7 @@ first_file=${skill_files%% *}
 
 # --- install into an empty config directory --------------------------------
 cfg="$work/fresh"
-dest_dir="$cfg/skills/$skill_name"
+dest_dir="$cfg/$dest_subdir"
 dest="$dest_dir/$last_file"
 run_installer "$cfg"
 check "install exits 0" [ "$status" -eq 0 ]
@@ -93,7 +103,7 @@ check "--uninstall exits 0" [ "$status" -eq 0 ]
 check "--uninstall removes every file" none_installed "$dest_dir"
 check "--uninstall reports each removal" all_reported "Removed" "$dest_dir"
 check "--uninstall removes the empty folder" [ ! -d "$dest_dir" ]
-check "--uninstall leaves the skills folder" [ -d "$cfg/skills" ]
+check "--uninstall leaves the $keep_subdir folder" [ -d "$cfg/$keep_subdir" ]
 
 # --- --uninstall keeps a folder that holds other files ----------------------
 run_installer "$cfg"
@@ -119,7 +129,7 @@ mkdir -p "$fake_home"
 status=$?
 check "HOME fallback exits 0" [ "$status" -eq 0 ]
 check "HOME fallback installs under .claude (path with a space)" \
-	all_installed "$fake_home/.claude/skills/$skill_name"
+	all_installed "$fake_home/.claude/$dest_subdir"
 
 # --- rejects an unknown option ----------------------------------------------
 run_installer "$cfg" --bogus
@@ -128,4 +138,4 @@ check "unknown option prints usage" output_has "Usage:"
 
 run_installer "$cfg" --help
 check "--help exits 0" [ "$status" -eq 0 ]
-check "--help names the skill" output_has "$skill_name skill"
+check "--help names what is installed" output_has "$skill_name $install_noun"

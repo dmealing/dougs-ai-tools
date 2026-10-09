@@ -1,0 +1,15 @@
+{
+  "description": "Notice the user and the model as the context window fills.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/context-nudge-hook.sh\" --plugin"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "session_id": "sample-session-0001",
+  "prompt_id": "5f0c1c0e-0000-4000-8000-000000000001",
+  "transcript_path": "/work/sessions/sample-session-0001.jsonl",
+  "cwd": "/work/project",
+  "permission_mode": "default",
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "Add a test for the retry path"
+}
