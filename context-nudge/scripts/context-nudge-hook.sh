@@ -1,12 +1,14 @@
 #!/bin/sh
 # UserPromptSubmit hook: tell the user and the model how full the context
-# window is, once on entry to each band and on every prompt near the top.
+# window is: once on entry to each band, and on every prompt once compaction
+# is close.
 #
 # The hook input carries no context usage, so the percentage comes from the
 # file the status-line half writes (context-nudge-cache.sh or
 # context-nudge-statusline.sh). Without that file the hook reads the session
 # transcript, and only when CONTEXT_NUDGE_WINDOW_SIZE says how large the
-# window is. When the percentage is not known the hook says nothing.
+# window is. When the usage or the window size is not known the hook says
+# nothing.
 #
 # Output is one JSON object with two messages:
 #   systemMessage                         shown to the user: the reading and
@@ -20,9 +22,9 @@
 #
 # Settings are environment variables; see the README.
 
-# The cn_ names come from the sourced context-nudge-lib.sh, and the jq programs
-# are literal text.
-# shellcheck disable=SC2154,SC2016
+# The cn_ names come from the sourced context-nudge-lib.sh, which also reads
+# the ones set here, and the jq programs are literal text.
+# shellcheck disable=SC2154,SC2034,SC2016
 
 set -u
 
@@ -77,13 +79,12 @@ fi
 
 # --- how full is the window? ---------------------------------------------------
 if ! cn_read_cache "$sid" "$now"; then
-	# No status-line record, or one that is too old or has no percentage in
-	# it. The transcript gives a token count but not the
-	# window size, and a guessed size gives a wrong percentage.
+	# No status-line record, or one that is too old or has no usage in it.
+	# The transcript gives a token count but not the window size, so it is
+	# read only when the size has been stated.
+	cn_pct=''
+	cn_size=''
 	cn_is_uint "${CONTEXT_NUDGE_WINDOW_SIZE:-}" || exit 0
-	cn_number "$CONTEXT_NUDGE_WINDOW_SIZE" 0
-	cn_size=$cn_value
-	[ "$cn_size" -gt 0 ] || exit 0
 	[ -n "${transcript:-}" ] && [ -r "$transcript" ] || exit 0
 	# The last main-conversation reply's input side, the count the reported
 	# percentage uses. fromjson? skips a line that is still being written.
@@ -94,63 +95,36 @@ if ! cn_read_cache "$sid" "$now"; then
 		| (.input_tokens // 0) + (.cache_creation_input_tokens // 0)
 			+ (.cache_read_input_tokens // 0)' 2>/dev/null | tail -n 1)
 	cn_is_uint "$cn_tokens" || exit 0
-	cn_pct=$((cn_tokens * 100 / cn_size))
 fi
-[ -n "$cn_pct" ] || exit 0
+cn_assess || exit 0
 
-# --- which band, and has it been announced? ---------------------------------
-cn_load_settings
-band=0
-for b in $cn_bands; do
-	if [ "$cn_pct" -ge "$b" ] && [ "$b" -gt "$band" ]; then band=$b; fi
-done
-[ "$cn_pct" -lt "$cn_repeat" ] || band=$cn_repeat
-
+# --- has this level been announced? --------------------------------------------
 state="$cn_dir/$sid.band"
 last=0
 [ -r "$state" ] && read -r last <"$state"
 cn_number "$last" 0
 last=$cn_value
 
-if [ "$band" -lt "$last" ]; then
-	# Usage fell, after a compaction for example. Re-arm at the lower band
+if [ "$cn_level" -lt "$last" ]; then
+	# Usage fell, after a compaction for example. Re-arm at the lower level
 	# and say nothing, so the bands above it are announced again.
-	printf '%s\n' "$band" >"$state" 2>/dev/null || :
+	printf '%s\n' "$cn_level" >"$state" 2>/dev/null || :
 	exit 0
 fi
-[ "$band" -gt 0 ] || exit 0
-if [ "$band" -eq "$last" ] && [ "$cn_pct" -lt "$cn_repeat" ]; then
+[ "$cn_level" -gt 0 ] || exit 0
+if [ "$cn_level" -eq "$last" ] && [ "$cn_level" -lt 4 ]; then
 	exit 0
 fi
-printf '%s\n' "$band" >"$state" 2>/dev/null || :
+printf '%s\n' "$cn_level" >"$state" 2>/dev/null || :
 
 # --- the two messages ----------------------------------------------------------
-# The wording follows the percentage, so a custom band list changes when the
-# hook speaks and not what it says at a given level. It steps up inside each
-# label, never ahead of it, so the label and the advice cannot disagree.
-if [ "$cn_pct" -ge "$cn_repeat" ]; then
-	advice='Stop starting new work. Land or park what is open now, then hand off or compact.'
-elif [ "$cn_pct" -ge "$cn_high" ]; then
-	if [ "$cn_pct" -ge 85 ]; then
-		advice='Land what is in flight and move to a fresh session soon: hand off or compact.'
-	elif [ "$cn_pct" -ge 80 ]; then
-		advice='Quality over a window this full is likely dropping. Wrap up the current thread, then hand off or compact.'
-	else
-		advice='At the next clean break, consider a fresh session: hand off or compact.'
-	fi
-elif [ "$cn_pct" -ge 60 ]; then
-	advice='Finish what is open before starting something new.'
-else
-	advice='Still fine. Avoid starting a large new task in this session.'
-fi
-
-cn_label "$cn_pct"
-if [ -n "$cn_tokens" ] && [ -n "$cn_size" ]; then
-	detail=" ($((cn_tokens / 1000))k of $((cn_size / 1000))k tokens)"
-else
-	detail=''
-fi
-reading="${cn_pct}% used${detail} - ${cn_label_text}"
+case "$cn_level" in
+1) advice='Still fine. Avoid starting a large new task in this session.' ;;
+2) advice='Finish what is open before starting something new. A handoff or a compact at the next clean break is worth considering.' ;;
+3) advice='Quality over a window this full is likely dropping. Wrap up the current thread, then hand off or compact.' ;;
+*) advice='Compaction is close. Stop starting new work: land or park what is open now, then hand off or compact.' ;;
+esac
+reading="${cn_shown}% used ($((cn_used / 1000))k of $((cn_window / 1000))k tokens) - ${cn_label_text}"
 
 # The advice is for the user. The model gets the reading as one sentence of
 # fact, worded so that it cannot be taken for an order.
@@ -159,7 +133,7 @@ reading="${cn_pct}% used${detail} - ${cn_label_text}"
 	hookSpecificOutput: {
 		hookEventName: "UserPromptSubmit",
 		additionalContext: ("CONTEXT NUDGE: the context window is " + $reading
-			+ "; this is a status readout for the user, not an instruction to stop work or to write a handoff, and one single-line offer to hand off or compact (the user may have the optional /handoff skill), followed by waiting for the answer, is the most it calls for.")
+			+ "; this is information only, not an instruction to stop work, and a handoff is written only when the user asks for one, so a one-line suggestion to hand off or compact (the user may have the optional /handoff skill) is the most it calls for.")
 	}
 }'
 exit 0

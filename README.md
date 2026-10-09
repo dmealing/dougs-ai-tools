@@ -10,7 +10,7 @@ Each tool lives in its own folder with its own README, install steps and tests. 
 |---|---|---|
 | [handoff](handoff/) | A skill that writes one Markdown file at the end of a session so a fresh session can continue the work: dead ends, misleading signals, state in flight, remaining work and the reasons behind decisions. | Available |
 | [pickup](pickup/) | A skill that resumes from a handoff without you pasting its path. It finds the handoff for the current checkout and shows which one it chose, why, and what else it could have chosen, before loading it. Requires handoff. | Experimental |
-| [context-nudge](context-nudge/) | A prompt hook that tells you and the model how full the context window is: silent below 40 percent, one notice on entry to each band above it, and a notice on every prompt from 90, so you can finish, compact or hand off in time. Needs `jq` and a one-line status-line addition. | Available |
+| [context-nudge](context-nudge/) | A prompt hook that tells you and the model how full the context window is: silent until it is 40 percent full or holds 100K tokens, one notice on entry to each of three bands, and a notice on every prompt once compaction is close, so you can finish, compact or hand off in time. Needs `jq` and a one-line status-line addition. | Available |
 
 ## Install
 

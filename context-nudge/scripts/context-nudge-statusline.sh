@@ -26,26 +26,23 @@ if ! cn_have_jq; then
 fi
 
 cn_record "$input"
-cn_load_settings
 
 model=${cn_model:-Claude}
-if [ -z "$cn_pct" ]; then
+if ! cn_assess; then
+	# No usage yet, or no window size to measure it against.
 	printf '%s | context --\n' "$model"
 	exit 0
 fi
 
-cn_label "$cn_pct"
 if [ -n "${NO_COLOR:-}" ]; then
-	printf '%s | %s%% context | %s\n' "$model" "$cn_pct" "$cn_label_text"
+	printf '%s | %s%% context | %s\n' "$model" "$cn_shown" "$cn_label_text"
 	exit 0
 fi
 
-if [ "$cn_pct" -ge "$cn_high" ]; then
-	colour=31
-elif [ "$cn_pct" -ge "$cn_first" ]; then
-	colour=33
-else
-	colour=32
-fi
+case "$cn_level" in
+0) colour=32 ;;
+1) colour=33 ;;
+*) colour=31 ;;
+esac
 printf '%s | \033[%sm%s%% context\033[0m | \033[1;%sm%s\033[0m\n' \
-	"$model" "$colour" "$cn_pct" "$colour" "$cn_label_text"
+	"$model" "$colour" "$cn_shown" "$colour" "$cn_label_text"

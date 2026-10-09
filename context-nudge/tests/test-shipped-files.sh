@@ -70,7 +70,7 @@ for script in context-nudge-hook.sh context-nudge-lib.sh context-nudge-cache.sh 
 done
 
 # --- 5. every setting is documented ----------------------------------------------
-settings=$(grep -ohE 'CONTEXT_NUDGE_[A-Z_]+' "$root"/scripts/*.sh "$root/install.sh" | sort -u)
+settings=$(grep -ohE 'CONTEXT_NUDGE_[A-Z0-9_]+' "$root"/scripts/*.sh "$root/install.sh" | sort -u)
 check "the scripts read settings from the environment" [ -n "$settings" ]
 for setting in $settings; do
 	check "README documents $setting" grep -qF -- "\`$setting\`" "$readme"
