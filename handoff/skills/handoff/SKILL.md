@@ -5,6 +5,32 @@ description: Use ONLY when the user explicitly asks to hand work to a new sessio
 
 # Handoff
 
+## When to write one
+
+**A handoff is written only when the user asks for one.** Only these open the gate:
+
+- `/handoff` (with or without extra words after it)
+- "hand this off", "write a prompt to continue", "give me something to start a fresh session with"
+- a direct answer of *yes* to an offer you made
+
+**Nothing else does.** A context notice, a long session, a finished task or your own judgement that this is a clean break is never a reason. In particular, none of these are permission:
+
+| Not permission | Why it feels like it |
+|---|---|
+| A warning or notice about context usage, from any tool | It informs the **user**. It does not ask you to write a file. |
+| Context crossing 40%, 50%, 70%, any number | A percentage is a fact about the window, not a request. |
+| Finishing a pull request, a task, a test run | Completing work is not the same as ending the session. |
+| "That's done" / "nice" / "ok" | Acknowledgement, not instruction. |
+| Your own sense that this is a clean break | In the author's own use, that judgement often fired while most of the window was still free. It is not reliable. |
+
+**When you believe a boundary has arrived, you may offer one, in a single line, and then you stop:**
+
+> Pull request #42 is merged and the tree is clean. Clean break if you want it — say the word and I'll write the handoff.
+
+Then **do nothing**. Do not draft it "so it's ready". Do not write it to a scratch file. Do not start the verification commands. The user says yes, or they don't.
+
+---
+
 A handoff carries **what the next session cannot recover on its own** — above all *what was already tried and failed*, and *why* things are the way they are.
 
 It is loaded **once** and replaces a session's worth of state. Rules for `CLAUDE.md`/`AGENTS.md` do not apply: those are paid every session, so dilution compounds. Do not carry an always-loaded-file instinct into it.
@@ -21,27 +47,7 @@ It is loaded **once** and replaces a session's worth of state. Rules for `CLAUDE
 
 ## Gate 1 — Did the user ask?
 
-Only these open the gate:
-
-- `/handoff` (with or without extra words after it)
-- "hand this off", "write a prompt to continue", "give me something to start a fresh session with"
-- a direct answer of *yes* to an offer you made
-
-**Nothing else does.** In particular, none of these are permission:
-
-| Not permission | Why it feels like it |
-|---|---|
-| A warning or notice about context usage, from any tool | It informs the **user**. It does not ask you to write a file. |
-| Context crossing 40%, 50%, 70%, any number | A percentage is a fact about the window, not a request. |
-| Finishing a pull request, a task, a test run | Completing work is not the same as ending the session. |
-| "That's done" / "nice" / "ok" | Acknowledgement, not instruction. |
-| Your own sense that this is a clean break | Measured across a few hundred real sessions, that judgment regularly fired with less than 15% of the window used. It is not reliable. |
-
-**When you believe a boundary has arrived, you get one line and then you stop:**
-
-> Pull request #42 is merged and the tree is clean. Clean break if you want it — say the word and I'll write the handoff.
-
-Then **do nothing**. Do not draft it "so it's ready". Do not write it to a scratch file. Do not start the verification commands. The user says yes, or they don't.
+The rule at the top decides. If the user did not ask, write nothing.
 
 ## Gate 2 — Is anything in flight that dies with this session?
 
@@ -89,9 +95,9 @@ Once the file is written, your message ends with the absolute path of the file o
 
 plus its `wc -lm` counts. Then you stop. No further tool calls. No "while you read that, I'll…". No starting the next item.
 
-**Why this is absolute:** measured across a few hundred real sessions, about a quarter kept working after writing the handoff, some for hundreds of further transcript lines. In every one of those the path scrolled out of view and the user could no longer find the file that had been written for them. A handoff the user cannot see is not a handoff.
+**Why this is absolute:** in the author's own use, sessions that kept working after writing the handoff let the path scroll out of view, and the user could no longer find the file that had been written for them. A handoff the user cannot see is not a handoff.
 
-**Writing it twice is the same failure.** In the same measurement, about one session in five wrote its handoff more than once. If you already wrote a handoff this session, you do **not** write another on your own — not to "update it", not because more happened. More happening after the handoff means Gate 3 was broken. If the user explicitly asks again after further work, that is a new invocation: rewrite fresh (Part 4) and stop again.
+**Writing it twice is the same failure.** In the author's own use, sessions did sometimes write their handoff more than once. If you already wrote a handoff this session, you do **not** write another on your own — not to "update it", not because more happened. More happening after the handoff means Gate 3 was broken. If the user explicitly asks again after further work, that is a new invocation: rewrite fresh (Part 4) and stop again.
 
 **Never split across two files.** One stream, one file. If it feels like two streams, it is two handoffs in two *sessions*, not two files in one.
 
@@ -112,11 +118,15 @@ plus its `wc -lm` counts. Then you stop. No further tool calls. No "while you re
 
 `<project>` is the **directory name of the repository's main working tree**: the basename of the first entry printed by `git worktree list --porcelain`. Every worktree of one repository therefore shares one folder. Outside a git repository, it is the basename of the current directory.
 
+A bare clone with its working trees beside it is the exception: its first entry is the bare directory, which names nothing. Then the project comes from that directory. A `.bare` or `.git` directory takes its parent's name, and `name.git` becomes `name`.
+
 Resolve it with this, which runs unchanged on macOS and Linux:
 
 ```bash
 main=$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')
+bare=$(git worktree list --porcelain 2>/dev/null | sed -n '2s/^bare$/yes/p')
 project=$(basename "${main:-$PWD}")
+if [ -n "$bare" ]; then case "$project" in .bare | .git) project=$(basename "$(dirname "$main")") ;; *.git) project=${project%.git} ;; esac; fi
 root="${HANDOFF_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/handoffs}"
 dir="$root/$project"
 mkdir -p "$dir"
@@ -138,6 +148,7 @@ The companion `pickup` skill and other tools parse these lines to find the right
 ```markdown
 **Project:** `<project>`
 **Repo:** `<absolute path of THIS checkout>`   **Branch:** `<branch>`   **Written:** <YYYY-MM-DD>
+**Commit:** `<short hash of the current commit>`
 **Start:** <first command>
 ```
 
@@ -145,6 +156,7 @@ The companion `pickup` skill and other tools parse these lines to find the right
 - **`**Repo:**`** is the absolute path of the checkout you actually worked in — the worktree, not the main working tree — in backticks. One repository with several checkouts is normal; never assume the reader is in the directory you were in.
 - **`**Branch:**`** is the branch name, in backticks, first thing after the marker: the output of `git branch --show-current`. Extra words after the backticked name are fine. Not `merged to main`, not prose. On a detached HEAD write `` `detached@<short-sha>` ``. Outside a git repository write `` `none` ``.
 - **`**Written:**`** is today's date as `YYYY-MM-DD` (`date +%Y-%m-%d`).
+- **`**Commit:**`** is the commit the checkout was at when you wrote the handoff: the output of `git rev-parse --short HEAD`, in backticks, on its own line. Outside a git repository, or in one with no commit yet, leave the whole line out.
 
 ## Archiving a finished stream
 
@@ -193,6 +205,7 @@ You are writing at the moment your context is most degraded — exactly when con
 ```bash
 git status --short
 git branch --show-current
+git rev-parse --short HEAD
 git log --oneline '@{u}..HEAD' 2>/dev/null   # unpushed commits; silent with no upstream
 git stash list
 if command -v gh >/dev/null 2>&1; then gh pr status 2>/dev/null | head -20; fi
@@ -208,13 +221,16 @@ If you assert a test passes, you ran it this session. If you cannot verify a cla
 
 Order is deliberate: blocking first, then what will waste the reader's time, then the work. Attention depletes as the file goes, so nothing load-bearing sits at the bottom.
 
-**Size: whatever the gates admit.** Typical is 1,500–2,500 tokens (~6,000–10,000 characters). That is an observed range, **not a floor and not a ceiling**. Never pad to reach it; never cut something load-bearing to stay under it.
+**Size: whatever the gates admit.** In the author's own use a handoff typically ran to a few thousand characters up to about ten thousand. That is an observation, **not a floor and not a ceiling**. Never pad to reach it; never cut something load-bearing to stay under it.
+
+**Leave out secrets:** keys, tokens, passwords and personal data. Say where a secret lives (the variable name, the vault entry, the file path) instead of what it is.
 
 ```markdown
 # Continue — <project>: <stream>
 
 **Project:** `<project>`
 **Repo:** `<absolute path of THIS checkout>`   **Branch:** `<branch>`   **Written:** <YYYY-MM-DD>
+**Commit:** `<short hash of HEAD; leave the line out outside git>`
 **Start:** <the single first command, assuming a shell in the repo above.
            If something re-attachable is running, this IS the re-attach command.>
 
@@ -283,6 +299,7 @@ A real handoff runs longer than this in both directions. The shape is what to co
 
 **Project:** `parcel-tracker`
 **Repo:** `/srv/checkouts/parcel-tracker-retry`   **Branch:** `fix/webhook-retry-backoff`   **Written:** 2025-03-14
+**Commit:** `a41f09c`
 **Start:** `git fetch && git status --short && gh pr checks 318`
 
 ## Blocking
@@ -356,8 +373,6 @@ Then stop. See Part 2.
 
 # Common mistakes
 
-**Writing one nobody asked for.** The single most common failure — about a third of the handoffs measured. Offer in one line; wait.
-
 **Writing one over live, un-re-attachable work.** A session wrote a handoff with the words *"Last test still running. Let me write the handoff now while the result is fresh."* The run died with the session. Gate 2 exists for this.
 
 **Continuing to work after writing it.** The path scrolls away and the file is effectively lost.
@@ -380,8 +395,6 @@ Then stop. See Part 2.
 
 # Red flags
 
-- You are writing a handoff and nobody asked for one
-- A percentage or a context warning is your reason for writing
 - Something is running that has no run id, and you are writing anyway
 - You have already written a handoff this session
 - You are about to use `Edit` on a handoff file

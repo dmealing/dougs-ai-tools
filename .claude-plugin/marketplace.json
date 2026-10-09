@@ -1,6 +1,6 @@
 {
   "name": "dougs-ai-tools",
-  "description": "Small, independent tools for Claude Code and similar coding agents.",
+  "description": "Small, independent tools for Claude Code.",
   "owner": {
     "name": "dmealing"
   },

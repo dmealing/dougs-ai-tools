@@ -1,6 +1,9 @@
 ---
 name: pickup
 description: Use ONLY when the user types "/pickup" (with or without a stream name) or explicitly asks to resume from a handoff — "pick up the handoff", "resume from the handoff", "carry on from the handoff file". Finds the handoff for this checkout, shows which one it chose and why before reading it, then verifies it and starts work. Do NOT use on a bare "continue", "resume" or "keep going" with no mention of a handoff.
+allowed-tools:
+  - Bash(sh ${CLAUDE_SKILL_DIR}/list-handoffs.sh *)
+  - Bash(sh "${CLAUDE_SKILL_DIR}/list-handoffs.sh" *)
 ---
 
 # Pickup
@@ -9,7 +12,7 @@ The other half of the `handoff` skill. A previous session wrote one Markdown fil
 
 **Experimental.** The selection rules may change.
 
-**Requires the handoff skill.** It writes the files this skill reads, and it defines where they are stored and what their first lines mean. This skill does not redefine either.
+**Requires the handoff skill.** It writes the files this skill reads, and it defines where they are stored and what their first lines mean. This skill does not redefine either. The plugin declares that dependency, so installing it as a plugin brings the handoff skill with it.
 
 **Why the choice is shown:** a pickup that chooses silently is right most of the time and wrong without warning. One wrong pick costs more than every right one saves, because the user stops trusting it and goes back to pasting paths. So the choice is never silent, not even when it is obvious.
 
@@ -55,8 +58,8 @@ The top lines describe the run. The ones that decide what you do:
 Then one block per candidate, best first. Each has its `path:`, its `written:` date, the `recorded-repo:` and `recorded-branch:` it was written in, and:
 
 - `reason:` lines — evidence that this is the one, with points. `name-exact`, `name-partial`, `repo-path`, `branch`.
-- `weak:` lines — a match that proves nothing: both on a default branch such as `main`, or both on a detached HEAD. It adds no points.
-- `flag:` lines — something the user should know before trusting it: `stale`, `repo-missing`, `branch-missing`, `different-checkout`, `different-branch`, `pr-merged`, `pr-closed`, `header-incomplete`.
+- `weak:` lines — a match that proves nothing: both on a default branch such as `main`, or both on a detached HEAD. It adds no points. A `commit` line says how far this checkout has moved from the commit the handoff recorded; it is context for the user, not a flag.
+- `flag:` lines — something the user should know before trusting it: `stale`, `repo-missing`, `branch-missing`, `different-checkout`, `different-branch`, `different-commit`, `pr-merged`, `pr-closed`, `legacy-project`, `header-incomplete`.
 
 `pr: unknown` and `pr: not-checked` mean the pull request could not be checked. They do not mean there is none.
 

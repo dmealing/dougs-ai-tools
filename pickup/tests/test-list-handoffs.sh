@@ -58,7 +58,7 @@ new_repo() {
 	) >/dev/null 2>&1
 }
 
-# write_handoff <store> <folder> <stream> <project> <repo> <branch> <written>
+# write_handoff <store> <folder> <stream> <project> <repo> <branch> <written> [<commit>]
 # An empty value leaves that header field out, as an older file would.
 # The backticks are literal Markdown, not shell.
 # shellcheck disable=SC2016
@@ -70,7 +70,9 @@ write_handoff() {
 		[ -z "$5" ] || printf '**Repo:** `%s`   ' "$5"
 		[ -z "$6" ] || printf '**Branch:** `%s`   ' "$6"
 		[ -z "$7" ] || printf '**Written:** %s' "$7"
-		printf '\n**Start:** `git status --short`\n\n## Still to do\n- nothing real\n'
+		printf '\n'
+		[ -z "${8:-}" ] || printf '**Commit:** `%s`\n' "$8"
+		printf '**Start:** `git status --short`\n\n## Still to do\n- nothing real\n'
 	} >"$1/$2/$3.md"
 }
 
@@ -93,6 +95,7 @@ block_has() {
 		/^\[[0-9]+\] / { inside = (substr($0, index($0, "] ") + 2) == stream) }
 		inside { print }' "$work/out" | grep -qF -- "$2"
 }
+block_lacks() { ! block_has "$1" "$2"; }
 # store_state: a fingerprint of the store's file names and contents, used to
 # prove the script changed nothing.
 store_state() {
@@ -209,6 +212,106 @@ check "detached: confidence is ambiguous" has_line "confidence: ambiguous"
 check "detached: the match is printed as weak" has_text "weak: detached +0 both are on a detached HEAD (the same commit)"
 check "detached: action is ask" has_line "action: ask"
 
+# A reused checkout path: the handoff was written on a detached HEAD at one
+# commit, and the checkout is now detached at another. Nothing but the path
+# matches, so a lone candidate must be asked about, never loaded.
+store="$work/store-detached-reused"
+checkout="$work/anvil"
+new_repo "$checkout" main
+(cd "$checkout" && git checkout -q --detach) >/dev/null 2>&1
+sha_a=$(cd "$checkout" && git rev-parse --short HEAD)
+(cd "$checkout" && git -c user.name=test -c user.email=test@example.invalid \
+	commit -q --allow-empty -m second) >/dev/null 2>&1
+sha_b=$(cd "$checkout" && git rev-parse --short HEAD)
+write_handoff "$store" anvil forge-door anvil "$checkout" "detached@$sha_a" "$today"
+list "$store" "$checkout"
+check "detached reused: the handoff is the single candidate" has_line "confidence: single"
+check "detached reused: the other commit is flagged" \
+	has_line "  flag: different-commit recorded detached at $sha_a; here is detached at $sha_b"
+check "detached reused: a flagged lone candidate is asked about" has_line "action: ask"
+check "detached reused: it is still proposed" has_line "proposed: 1 forge-door"
+check "detached reused: the weak line says it is not the same commit" \
+	has_text "weak: detached +0 both are on a detached HEAD (not the same commit)"
+write_handoff "$store" anvil forge-door anvil "$checkout" "detached@$sha_b" "$today"
+list "$store" "$checkout"
+check "detached reused: the same commit is not flagged" has_line "  flag: none"
+check "detached reused: the same commit loads" has_line "action: load"
+# A hash abbreviated to a different length is still the same commit.
+write_handoff "$store" anvil forge-door anvil "$checkout" "detached@$(printf %s "$sha_b" | cut -c1-5)" "$today"
+list "$store" "$checkout"
+check "detached reused: a shorter hash of the same commit is not a flag" lacks_text "flag: different-commit"
+# A detached handoff read from a named branch says nothing about commits.
+(cd "$checkout" && git checkout -q -b feat/anvil-cover) >/dev/null 2>&1
+write_handoff "$store" anvil forge-door anvil "$checkout" "detached@$sha_a" "$today"
+list "$store" "$checkout"
+check "detached reused: a named branch here is not compared by commit" lacks_text "flag: different-commit"
+# A named, non-default branch that matches still loads.
+write_handoff "$store" anvil forge-door anvil "$checkout" feat/anvil-cover "$today"
+list "$store" "$checkout"
+check "detached reused: a matching named branch still loads" has_line "action: load"
+check "detached reused: a matching named branch has no flag" has_line "  flag: none"
+
+# --- the commit the handoff recorded -----------------------------------------------------
+store="$work/store-commit"
+checkout="$work/lathe"
+new_repo "$checkout" fix/chuck-wobble
+c_one=$(cd "$checkout" && git rev-parse --short HEAD)
+for message in two three; do
+	(cd "$checkout" && git -c user.name=test -c user.email=test@example.invalid \
+		commit -q --allow-empty -m "$message") >/dev/null 2>&1
+done
+c_three=$(cd "$checkout" && git rev-parse --short HEAD)
+write_handoff "$store" lathe fix-chuck-wobble lathe "$checkout" fix/chuck-wobble "$today" "$c_three"
+list "$store" "$checkout"
+check "commit: the same commit is said so" has_text "weak: commit +0 this checkout is at the recorded commit $c_three"
+check "commit: the same commit is not a flag" has_line "  flag: none"
+check "commit: the same commit still loads" has_line "action: load"
+write_handoff "$store" lathe fix-chuck-wobble lathe "$checkout" fix/chuck-wobble "$today" "$c_one"
+list "$store" "$checkout"
+check "commit: commits ahead are counted" has_text "weak: commit +0 this checkout is 2 commit(s) ahead of the recorded commit $c_one"
+check "commit: being ahead is not a flag" has_line "  flag: none"
+check "commit: being ahead adds no points" has_line "  score: 80"
+check "commit: being ahead still loads" has_line "action: load"
+# Rewind the branch: the recorded commit is now ahead of the checkout.
+(cd "$checkout" && git branch -f side-line "$c_three" && git reset -q --hard "$c_one") >/dev/null 2>&1
+write_handoff "$store" lathe fix-chuck-wobble lathe "$checkout" fix/chuck-wobble "$today" "$c_three"
+list "$store" "$checkout"
+check "commit: commits behind are counted" has_text "weak: commit +0 this checkout is 2 commit(s) behind the recorded commit $c_three"
+# Two lines of history that split.
+(cd "$checkout" && git checkout -q side-line && git -c user.name=test -c user.email=test@example.invalid \
+	commit -q --allow-empty -m side && git checkout -q fix/chuck-wobble) >/dev/null 2>&1
+c_side=$(cd "$checkout" && git rev-parse --short side-line)
+(cd "$checkout" && git -c user.name=test -c user.email=test@example.invalid \
+	commit -q --allow-empty -m trunk) >/dev/null 2>&1
+write_handoff "$store" lathe fix-chuck-wobble lathe "$checkout" fix/chuck-wobble "$today" "$c_side"
+list "$store" "$checkout"
+check "commit: diverged history is said so" \
+	has_text "weak: commit +0 this checkout and the recorded commit $c_side have diverged"
+check "commit: diverged history is not a flag" has_line "  flag: none"
+write_handoff "$store" lathe fix-chuck-wobble lathe "$checkout" fix/chuck-wobble "$today" deadbee
+list "$store" "$checkout"
+check "commit: a commit this repository lacks is unknown" \
+	has_text "weak: commit +0 the recorded commit deadbee is not in this repository"
+check "commit: an unknown commit is not a flag" has_line "  flag: none"
+write_handoff "$store" lathe fix-chuck-wobble lathe "$checkout" fix/chuck-wobble "$today" "--upload-pack=x"
+list "$store" "$checkout"
+check "commit: a value that is no hash is unknown, not passed to git" \
+	has_text "the recorded commit --upload-pack=x is not in this repository"
+write_handoff "$store" lathe fix-chuck-wobble lathe "$checkout" fix/chuck-wobble "$today"
+list "$store" "$checkout"
+check "commit: an older file without the line has no commit line" lacks_text "weak: commit"
+check "commit: an older file without the line is not flagged" lacks_text "header-incomplete"
+check "commit: an older file without the line still loads" has_line "action: load"
+
+# Outside git there is nothing to compare with.
+store="$work/store-commit-plain"
+plain="$work/field-log"
+mkdir -p "$plain"
+write_handoff "$store" field-log survey-two field-log "$plain" none "$today" abc1234
+list "$store" "$plain"
+check "commit: outside git no commit line is printed" lacks_text "weak: commit"
+check "commit: outside git the handoff still loads" has_line "action: load"
+
 # --- a name argument --------------------------------------------------------------------
 store="$work/store-default"
 checkout="$work/depot"
@@ -292,6 +395,62 @@ check "worktree: action is ask" has_line "action: ask"
 list "$store" "$work/vineyard-press"
 check "worktree: the worktree shares the project" has_line "project: vineyard"
 check "worktree: in the worktree it loads" has_line "action: load"
+
+# --- a bare clone with working trees beside it ------------------------------------------
+# The first entry git lists is the bare directory itself, which names no
+# project. The project is named by what holds it.
+bare_layout() {
+	# bare_layout <folder> <bare directory name>: <folder>/<bare name> is a
+	# bare clone with a working tree called main beside it.
+	new_repo "$work/seed-$1" main
+	mkdir -p "$work/$1"
+	git clone -q --bare "$work/seed-$1" "$work/$1/$2" >/dev/null 2>&1
+	(cd "$work/$1/$2" && git worktree add -q ../main main) >/dev/null 2>&1
+}
+while read -r layout_folder layout_bare layout_project; do
+	bare_layout "$layout_folder" "$layout_bare"
+	store="$work/store-bare-$layout_folder"
+	write_handoff "$store" "$layout_project" mill-gate "$layout_project" "$work/$layout_folder/main" main "$today"
+	list "$store" "$work/$layout_folder/main"
+	check "bare layout $layout_bare: the project is $layout_project" has_line "project: $layout_project"
+	check "bare layout $layout_bare: its handoff is found" has_line "candidates: 1"
+	list "$store" "$work/$layout_folder/$layout_bare"
+	check "bare layout $layout_bare: the same from inside the bare directory" has_line "project: $layout_project"
+done <<'EOF_LAYOUTS'
+stone-mill .bare stone-mill
+grain-store .git grain-store
+salt-works salt-works.git salt-works
+tide-table tide-table-bare tide-table-bare
+EOF_LAYOUTS
+# A plain checkout whose folder merely ends in .git keeps its name.
+new_repo "$work/odd.git" main
+list "$work/store-odd" "$work/odd.git"
+check "bare layout: a working tree folder ending in .git is not renamed" has_line "project: odd.git"
+# A worktree of a normal clone still shares the main working tree's name.
+list "$work/store-worktree" "$work/vineyard-press"
+check "bare layout: a normal clone is unchanged" has_line "project: vineyard"
+
+# Older handoffs were filed under the bare directory's name. They stay findable
+# while they belong to this repository, and are flagged when that cannot be told.
+store="$work/store-bare-old"
+write_handoff "$store" .bare old-mill-gate .bare "$work/stone-mill/main" main "$today"
+write_handoff "$store" .bare other-repo-gate .bare "$work/vineyard" main "$today"
+write_handoff "$store" .bare gone-checkout-gate .bare "$work/removed-checkout" main "$today"
+write_handoff "$store" .bare no-header-gate "" "" "" ""
+write_handoff "$store" stone-mill new-mill-gate stone-mill "$work/stone-mill/main" main "$today"
+list "$store" "$work/stone-mill/main"
+check "legacy: the project is the new name" has_line "project: stone-mill"
+check "legacy: the old file is a candidate" has_text "path: $store/.bare/old-mill-gate.md"
+check "legacy: it says why it was found" block_has old-mill-gate \
+	'found-by: old project name ".bare"; its recorded checkout belongs to this repository'
+check "legacy: a verified old file is not flagged for its name" block_lacks old-mill-gate "legacy-project"
+check "legacy: a handoff from another repository is not offered" lacks_text "other-repo-gate"
+check "legacy: a file whose repository cannot be told is flagged" \
+	block_has gone-checkout-gate "flag: legacy-project filed under the old project name \".bare\""
+check "legacy: a file with no header is kept and flagged" \
+	block_has no-header-gate "flag: legacy-project filed under the old project name \".bare\""
+check "legacy: all four of this repository's files are counted" has_line "candidates: 4"
+check "legacy: with a flag in play the pickup asks" has_line "action: ask"
 
 # --- the project comes from the header, not the folder name -------------------------------
 store="$work/store-header"

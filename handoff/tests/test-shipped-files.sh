@@ -25,6 +25,8 @@ skill="$root/skills/handoff/SKILL.md"
 # --- 1. no absolute home path ----------------------------------------------
 check_no_home_path "$root" "$repo/lib" "$repo/tests" "$repo/README.md" "$repo/.claude-plugin"
 
+check_claude_code_only "$root" "$repo/README.md" "$repo/.claude-plugin"
+
 # --- 2. portable shell in the skill ----------------------------------------
 check_portable_shell "$skill"
 
@@ -32,14 +34,20 @@ check_portable_shell "$skill"
 check_plugin_names handoff "$root" "$repo"
 
 # --- the project-name rule in the skill, run for real ------------------------
-# Extract nothing: restate the documented rule and check it in a scratch repo
-# with a second worktree, so a change to the rule has to change this too.
+# The rule's own lines are run in scratch repositories: an ordinary one with a
+# second worktree, and bare clones with working trees beside them. The skill
+# must contain exactly those lines, so a change to the rule has to change this.
 if command -v git >/dev/null 2>&1; then
 	work=$(mktemp -d "${TMPDIR:-/tmp}/handoff-project-test.XXXXXX") || exit 1
 	trap 'rm -rf "$work"' EXIT INT TERM
 	resolve() {
-		main=$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')
-		basename "${main:-$PWD}"
+		eval "$project_rule"
+		printf '%s\n' "$project"
+	}
+	expect_project() {
+		# expect_project <description> <expected> <directory>
+		actual=$(cd "$3" && GIT_CEILING_DIRECTORIES="$work" resolve)
+		if [ "$actual" = "$2" ]; then pass "$1"; else fail "$1: got '$actual'"; fi
 	}
 	mkdir -p "$work/widget shop" "$work/plain-folder"
 	(
@@ -49,25 +57,31 @@ if command -v git >/dev/null 2>&1; then
 				commit -q --allow-empty -m init &&
 			git worktree add -q "$work/side-branch" -b side >/dev/null 2>&1
 	)
-	from_main=$(cd "$work/widget shop" && resolve)
-	from_side=$(cd "$work/side-branch" && resolve)
-	from_plain=$(cd "$work/plain-folder" && GIT_CEILING_DIRECTORIES="$work" resolve)
-	if [ "$from_main" = "widget shop" ]; then
-		pass "project name in the main working tree"
-	else
-		fail "project name in the main working tree: got '$from_main'"
-	fi
-	if [ "$from_side" = "widget shop" ]; then
-		pass "a second worktree shares the project name"
-	else
-		fail "a second worktree shares the project name: got '$from_side'"
-	fi
-	if [ "$from_plain" = "plain-folder" ]; then
-		pass "outside a repository the folder name is used"
-	else
-		fail "outside a repository the folder name is used: got '$from_plain'"
-	fi
-	if grep -qF -- "$project_rule" "$skill"; then
+	expect_project "project name in the main working tree" "widget shop" "$work/widget shop"
+	expect_project "a second worktree shares the project name" "widget shop" "$work/side-branch"
+	expect_project "outside a repository the folder name is used" "plain-folder" "$work/plain-folder"
+	# A bare clone with working trees beside it: the bare directory names nothing.
+	bare_layout() {
+		# bare_layout <folder> <bare directory name>
+		mkdir -p "$work/$1"
+		git clone -q --bare "$work/widget shop" "$work/$1/$2" >/dev/null 2>&1
+		(cd "$work/$1/$2" && git worktree add -q ../main side) >/dev/null 2>&1
+	}
+	bare_layout stone-mill .bare
+	bare_layout grain-store .git
+	bare_layout salt-works salt-works.git
+	bare_layout tide-table tide-table-bare
+	expect_project "a .bare directory takes its parent's name" stone-mill "$work/stone-mill/main"
+	expect_project "a .git bare directory takes its parent's name" grain-store "$work/grain-store/main"
+	expect_project "name.git becomes name" salt-works "$work/salt-works/main"
+	expect_project "any other bare directory keeps its name" tide-table-bare "$work/tide-table/main"
+	expect_project "the same from inside the bare directory" stone-mill "$work/stone-mill/.bare"
+	expect_project "name.git becomes name from inside it" salt-works "$work/salt-works/salt-works.git"
+	# Only a bare first entry is renamed.
+	mkdir -p "$work/odd.git"
+	(cd "$work/odd.git" && git init -q .) >/dev/null 2>&1
+	expect_project "a working tree folder that ends in .git keeps its name" "odd.git" "$work/odd.git"
+	if rule_in_file "$project_rule" "$skill"; then
 		pass "skill documents the same rule this test runs"
 	else
 		fail "skill no longer contains the project-name rule this test runs"
@@ -100,5 +114,28 @@ if grep -qF -- "$store_rule" "$skill"; then
 else
 	fail "skill no longer contains the store rule this test runs"
 fi
+
+# --- the header, the secrets line and the one place that says when to write ------
+check "the header template carries the commit line" grep -qF '**Commit:** `<short hash' "$skill"
+check "the skill tells the agent to leave out secrets" grep -qF '**Leave out secrets:**' "$skill"
+front_matter=$(awk 'NR == 1 && $0 == "---" { inside = 1; next } inside && $0 == "---" { exit } inside' "$skill")
+no_model_invocation_switch() { ! printf '%s\n' "$front_matter" | grep -q 'disable-model-invocation'; }
+check "the skill is not hidden from plain-words requests" no_model_invocation_switch
+rule_above_gate() {
+	rule_line=$(grep -n '^\*\*A handoff is written only when the user asks for one' "$skill" | cut -d: -f1)
+	gate_line=$(grep -n '^# PART 1' "$skill" | cut -d: -f1)
+	[ -n "$rule_line" ] && [ -n "$gate_line" ] && [ "$rule_line" -lt "$gate_line" ]
+}
+check "the rule on when to write sits above the first gate" rule_above_gate
+rule_stated_once() { [ "$(grep -c 'only when the user asks' "$skill")" -eq 1 ]; }
+check "the rule on when to write is stated once" rule_stated_once
+
+# --- credit for the work this one drew on ---------------------------------------
+upstream='ostikwhy-blip/claude-code-handoff-skill'
+check "the root NOTICE carries the upstream copyright line" grep -qxF 'Copyright (c) 2026 ostikwhy-blip' "$repo/NOTICE"
+check "the root NOTICE carries the upstream permission notice" \
+	grep -qF 'Permission is hereby granted, free of charge, to any person obtaining a copy' "$repo/NOTICE"
+check "the handoff README credits the upstream project" grep -qF "$upstream" "$root/README.md"
+check "the root README mentions the NOTICE file" grep -qF 'NOTICE' "$repo/README.md"
 
 finish shipped-file

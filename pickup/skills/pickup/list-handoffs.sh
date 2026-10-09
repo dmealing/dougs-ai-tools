@@ -173,6 +173,47 @@ branch_kind() {
 	esac
 }
 
+# same_commit <short hash> <short hash>: true when both are known and one is
+# the start of the other, because short hashes differ in length from one
+# repository to the next.
+same_commit() {
+	case "$1:$2" in
+	:* | *: | unknown:* | *:unknown) return 1 ;;
+	esac
+	case "$1" in
+	"$2"*) return 0 ;;
+	esac
+	case "$2" in
+	"$1"*) return 0 ;;
+	esac
+	return 1
+}
+
+# commit_relation <hash from the handoff>: how this checkout stands to that
+# commit, as one line for a weak: entry. Needs a git checkout in $here.
+commit_relation() {
+	case "$1" in
+	'' | *[!0-9a-fA-F]*) ;;
+	*)
+		if git -C "$here" rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1; then
+			if [ "$(git -C "$here" rev-parse "$1^{commit}")" = "$(git -C "$here" rev-parse HEAD)" ]; then
+				printf 'commit +0 this checkout is at the recorded commit %s\n' "$1"
+			elif git -C "$here" merge-base --is-ancestor "$1^{commit}" HEAD 2>/dev/null; then
+				printf 'commit +0 this checkout is %s commit(s) ahead of the recorded commit %s\n' \
+					"$(git -C "$here" rev-list --count "$1^{commit}..HEAD")" "$1"
+			elif git -C "$here" merge-base --is-ancestor HEAD "$1^{commit}" 2>/dev/null; then
+				printf 'commit +0 this checkout is %s commit(s) behind the recorded commit %s\n' \
+					"$(git -C "$here" rev-list --count "HEAD..$1^{commit}")" "$1"
+			else
+				printf 'commit +0 this checkout and the recorded commit %s have diverged\n' "$1"
+			fi
+			return 0
+		fi
+		;;
+	esac
+	printf 'commit +0 the recorded commit %s is not in this repository\n' "$1"
+}
+
 # branch_exists <repository directory> <branch>: true when the branch exists
 # there as a local branch or as a remote-tracking branch.
 branch_exists() {
@@ -251,16 +292,23 @@ if [ -z "${HANDOFF_DIR:-}" ] && [ -z "${CLAUDE_CONFIG_DIR:-}" ] && [ -z "${HOME:
 	die "none of HANDOFF_DIR, CLAUDE_CONFIG_DIR and HOME is set"
 fi
 
-# These three lines are the rule in the handoff skill, unchanged. A handoff
-# looked for under any other name is a handoff nobody finds.
+# These lines are the rule in the handoff skill, unchanged. A handoff looked
+# for under any other name is a handoff nobody finds.
 main=$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')
+bare=$(git worktree list --porcelain 2>/dev/null | sed -n '2s/^bare$/yes/p')
 project=$(basename "${main:-$PWD}")
+if [ -n "$bare" ]; then case "$project" in .bare | .git) project=$(basename "$(dirname "$main")") ;; *.git) project=${project%.git} ;; esac; fi
 root="${HANDOFF_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/handoffs}"
 # Printed paths have to be usable from any directory.
 case "$root" in
 /*) ;;
 *) root="$PWD/$root" ;;
 esac
+# Before the bare-clone rule, a repository laid out that way was filed under the
+# bare directory's own name. Files written then are still looked for, but only
+# when they are known to belong to this repository.
+legacy_project=$(basename "${main:-$PWD}")
+[ "$legacy_project" != "$project" ] || legacy_project=''
 
 # --- this checkout -----------------------------------------------------------------
 
@@ -315,7 +363,13 @@ count=0
 skipped=''
 named_branches=0
 
-for folder in "$root"/*/; do
+# A pattern does not match a folder whose name starts with a dot, which is what
+# the old name of a bare-clone layout usually is.
+legacy_folder=''
+case "$legacy_project" in
+.?*) legacy_folder="$root/$legacy_project/" ;;
+esac
+for folder in "$root"/*/ "$legacy_folder"; do
 	[ -d "$folder" ] || continue
 	folder=${folder%/}
 	folder_name=$(basename "$folder")
@@ -326,22 +380,49 @@ for folder in "$root"/*/; do
 		# The project named inside the file decides; the folder name is used
 		# only for a file that does not name one.
 		recorded_project=$(header_field "$file" Project)
+		legacy=0
 		if [ -n "$recorded_project" ]; then
-			if [ "$recorded_project" != "$project" ]; then
+			if [ "$recorded_project" = "$project" ]; then
+				if [ "$folder_name" = "$project" ]; then
+					found_by='project header'
+				else
+					found_by="project header; the file sits in folder \"$folder_name\", not \"$project\""
+				fi
+			elif [ -n "$legacy_project" ] && [ "$recorded_project" = "$legacy_project" ]; then
+				legacy=1
+			else
 				if [ "$folder_name" = "$project" ]; then
 					skipped="${skipped}skipped: $file (its **Project:** header names \"$recorded_project\")$nl"
 				fi
 				continue
 			fi
-			if [ "$folder_name" = "$project" ]; then
-				found_by='project header'
-			else
-				found_by="project header; the file sits in folder \"$folder_name\", not \"$project\""
-			fi
 		elif [ "$folder_name" = "$project" ]; then
 			found_by='folder name; the file has no **Project:** header'
+		elif [ -n "$legacy_project" ] && [ "$folder_name" = "$legacy_project" ]; then
+			legacy=1
 		else
 			continue
+		fi
+
+		# A file filed under the old name of a bare-clone layout is this
+		# repository's only if its recorded checkout says so. The old name was
+		# shared by every repository laid out that way.
+		legacy_unconfirmed=0
+		if [ "$legacy" -eq 1 ]; then
+			legacy_repo=$(header_field "$file" Repo)
+			legacy_dir=''
+			if [ -n "$legacy_repo" ] && legacy_dir=$(physical "$legacy_repo"); then
+				legacy_common=$(common_dir "$legacy_dir") || legacy_common=''
+				if [ -n "$legacy_common" ] && [ "$legacy_common" = "$here_common" ]; then
+					found_by="old project name \"$legacy_project\"; its recorded checkout belongs to this repository"
+				else
+					# Another repository's file under the shared old name.
+					continue
+				fi
+			else
+				found_by="old project name \"$legacy_project\"; its recorded checkout cannot be checked"
+				legacy_unconfirmed=1
+			fi
 		fi
 
 		count=$((count + 1))
@@ -355,6 +436,9 @@ for folder in "$root"/*/; do
 		reasons=''
 		flags=''
 		name_matched=0
+		if [ "$legacy_unconfirmed" -eq 1 ]; then
+			add_flag "legacy-project filed under the old project name \"$legacy_project\"; it may belong to another repository"
+		fi
 
 		# When it was written: the header's date, never the file's time unless
 		# the header has none.
@@ -446,15 +530,30 @@ for folder in "$root"/*/; do
 			;;
 		detached)
 			if [ "$current_kind" = detached ]; then
-				if [ "$recorded_branch" = "$current_branch" ]; then
+				recorded_commit=${recorded_branch#detached@}
+				[ "$recorded_commit" != "$recorded_branch" ] || recorded_commit=''
+				if [ "$recorded_branch" = "$current_branch" ] || same_commit "$recorded_commit" "$current_commit"; then
 					same='the same commit'
 				else
 					same='not the same commit'
+					# Only the path matched, and the commit has moved: a reused
+					# checkout, not the same work.
+					if [ -n "$recorded_commit" ] && [ -n "$current_commit" ]; then
+						add_flag "different-commit recorded detached at $recorded_commit; here is detached at $current_commit"
+					fi
 				fi
 				add_weak "detached +0 both are on a detached HEAD ($same); a detached HEAD does not identify a stream"
 			fi
 			;;
 		esac
+
+		# Where this checkout stands against the commit the handoff recorded.
+		# Older files have no such line; that is not a flag.
+		recorded_commit=$(header_field "$file" Commit)
+		recorded_commit=${recorded_commit%% *}
+		if [ -n "$recorded_commit" ] && [ "$in_git" -eq 1 ]; then
+			add_weak "$(commit_relation "$recorded_commit")"
+		fi
 
 		# A recorded branch, default or not, that no repository able to hold
 		# it still has. This is how a renamed default branch shows up.

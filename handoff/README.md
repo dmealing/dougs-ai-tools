@@ -70,6 +70,7 @@ Install it one way, not both, or the skill is listed twice.
 ```
 
 - **`<project>`** is the directory name of the repository's main working tree (the first entry of `git worktree list --porcelain`), so every worktree of one repository shares one folder. Outside a git repository it is the name of the current directory.
+- **A bare clone with its working trees beside it** has the bare directory as that first entry, which names nothing. The project is then named by what holds it: a `.bare` or `.git` directory takes its parent's name, and `name.git` becomes `name`. Handoffs written before this rule sit in a folder named after the bare directory (for example `.bare`); [pickup](../pickup/) still finds them, and you can move them into the project's folder when you like.
 - **`<stream>`** names the thread of work, usually the branch with `/` replaced by `-`. Several streams can be live in one project at once.
 
 Handoffs live outside the repository so they cannot be committed by accident. If `CLAUDE_CONFIG_DIR` is set, the `handoffs` folder is created there instead of in `~/.claude`.
@@ -95,6 +96,7 @@ A shortened, invented example:
 
 **Project:** `parcel-tracker`
 **Repo:** `/srv/checkouts/parcel-tracker-retry`   **Branch:** `fix/webhook-retry-backoff`   **Written:** 2025-03-14
+**Commit:** `a41f09c`
 **Start:** `git fetch && git status --short && gh pr checks 318`
 
 ## Blocking
@@ -122,7 +124,17 @@ A shortened, invented example:
 Re-verify anything above that you are about to act on, and report what has drifted.
 ```
 
-The first four header fields (`**Project:**`, `**Repo:**`, `**Branch:**`, `**Written:**`) have a fixed format so that tools can read them. The full template and a longer example are in [the skill itself](skills/handoff/SKILL.md).
+The header fields (`**Project:**`, `**Repo:**`, `**Branch:**`, `**Written:**` and `**Commit:**`) have a fixed format so that tools can read them. `**Commit:**` is the short hash of the commit the checkout was at, so a later session can see how far the checkout has moved; it is left out of a handoff written outside a git repository, and older handoffs do not have it. A handoff leaves out secrets (keys, tokens, passwords, personal data) and says where one lives instead. The full template and a longer example are in [the skill itself](skills/handoff/SKILL.md).
+
+## When not to use this
+
+A handoff has a cost: you write it, and the next session reads it. Often something lighter fits better.
+
+- **A single long sitting** is better served by `/compact`, which shrinks the context and keeps going.
+- **An interrupted session** is better served by `claude --continue` or `/resume`, which reopen the same conversation.
+- **Planned multi-phase work** is better served by a plan file kept in the repository: the plan is known in advance, so it does not need to be rediscovered.
+
+A handoff file earns its place for **unplanned work that spans sessions**, where what was tried and failed matters and nothing else records it.
 
 ## Resuming from a handoff
 
@@ -147,6 +159,10 @@ The path above is from the repository root; the script itself runs from anywhere
 ## Related
 
 [pickup](../pickup/) (experimental) resumes from the files this skill writes, without pasting a path. This skill does not need it.
+
+## Acknowledgements
+
+This skill drew on [claude-code-handoff-skill](https://github.com/ostikwhy-blip/claude-code-handoff-skill) by ostikwhy-blip (MIT licence), a reference for the discipline of verifying before writing, and for the wording of the "confident fiction" and "stranger test" passages. That project's copyright line and permission notice are in [NOTICE](../NOTICE).
 
 ## Licence
 
