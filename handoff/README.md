@@ -148,6 +148,8 @@ The path above is from the repository root; the script itself runs from anywhere
 
 [pickup](../pickup/) (experimental) resumes from the files this skill writes, without pasting a path. This skill does not need it.
 
+[context-nudge](../context-nudge/) tells you when the context window is filling, which is the usual time to hand off. This skill does not need it either.
+
 ## Licence
 
 Apache-2.0. See [LICENSE](../LICENSE).

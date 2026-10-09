@@ -1,0 +1,13 @@
+{
+  "name": "context-nudge",
+  "displayName": "Context Nudge",
+  "version": "0.1.0",
+  "description": "Tell the user and the model how full the context window is: silent below 40 percent, one notice on entry to each band above it, and a notice on every prompt from 90, so you can finish, compact or hand off in time. Needs jq and a one-line status-line addition.",
+  "author": {
+    "name": "dmealing"
+  },
+  "homepage": "https://github.com/dmealing/dougs-ai-tools/tree/main/context-nudge",
+  "repository": "https://github.com/dmealing/dougs-ai-tools",
+  "license": "Apache-2.0",
+  "keywords": ["context", "context-window", "hook", "statusline", "handoff"]
+}
