@@ -3,4 +3,4 @@
 # The test command also runs shellcheck over the shell scripts, so there is
 # no separate lint command.
 commands:
-  test: 'sh handoff/tests/run.sh'
+  test: 'sh tests/run.sh'

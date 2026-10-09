@@ -51,7 +51,7 @@ git clone https://github.com/dmealing/dougs-ai-tools.git
 sh dougs-ai-tools/handoff/install.sh
 ```
 
-This copies the skill to `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/handoff/SKILL.md`, and the command is `/handoff`.
+This copies the skill to `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/handoff/SKILL.md`, and the command is `/handoff`. Run the script from the cloned repository: it uses code in the repository's `lib/` folder.
 
 | Command | Effect |
 |---|---|
@@ -134,6 +134,8 @@ Read ~/.claude/handoffs/parcel-tracker/fix-webhook-retry-backoff.md and continue
 
 The printed path is absolute; `~` is used here only to keep the example short. To see what is live for a project, list its folder: `ls ~/.claude/handoffs/<project>/`.
 
+The experimental [pickup](../pickup/) skill does this step for you: `/pickup` finds the handoff for the current checkout and shows which one it chose and why before loading it.
+
 ## Tests
 
 ```sh
@@ -144,7 +146,7 @@ The path above is from the repository root; the script itself runs from anywhere
 
 ## Related
 
-More tools for working across sessions are planned in this repository. This skill does not need them.
+[pickup](../pickup/) (experimental) resumes from the files this skill writes, without pasting a path. This skill does not need it.
 
 ## Licence
 

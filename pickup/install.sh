@@ -1,8 +1,9 @@
 #!/bin/sh
-# Install or remove the handoff skill for Claude Code without the plugin system.
+# Install or remove the pickup skill for Claude Code without the plugin system.
 #
-# Copies skills/handoff/SKILL.md from this folder to
-#   ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/handoff/SKILL.md
+# Copies skills/pickup/SKILL.md and skills/pickup/list-handoffs.sh from this
+# folder to
+#   ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/pickup/
 #
 # The work is done by ../lib/install-skill.sh, which every tool in this
 # repository shares, so run this from a full clone of the repository.
@@ -21,10 +22,10 @@ fi
 # The four variables are read by the sourced file.
 # shellcheck disable=SC2034
 {
-	skill_name=handoff
-	skill_src="$here/skills/handoff"
-	skill_files='SKILL.md'
-	skill_hint='Start a new Claude Code session and run /handoff when you want to hand work off.'
+	skill_name=pickup
+	skill_src="$here/skills/pickup"
+	skill_files='SKILL.md list-handoffs.sh'
+	skill_hint='Start a new Claude Code session and run /pickup to resume from a handoff. The handoff skill writes the files this one reads.'
 }
 
 # shellcheck source=/dev/null

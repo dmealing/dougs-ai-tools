@@ -9,6 +9,11 @@
       "name": "handoff",
       "source": "./handoff",
       "description": "Write one Markdown file at the end of a coding session so a fresh session can continue the work."
+    },
+    {
+      "name": "pickup",
+      "source": "./pickup",
+      "description": "Experimental. Resume from a handoff without pasting its path: shows which handoff it chose and why before loading it. Requires handoff."
     }
   ]
 }

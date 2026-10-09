@@ -1,0 +1,13 @@
+{
+  "name": "pickup",
+  "displayName": "Pickup",
+  "version": "0.1.0",
+  "description": "Experimental. Resume from a handoff without pasting its path: finds the handoff for the current checkout and shows which one it chose, why, and what else it could have chosen, before loading it. Requires the handoff skill.",
+  "author": {
+    "name": "dmealing"
+  },
+  "homepage": "https://github.com/dmealing/dougs-ai-tools/tree/main/pickup",
+  "repository": "https://github.com/dmealing/dougs-ai-tools",
+  "license": "Apache-2.0",
+  "keywords": ["pickup", "handoff", "session", "context", "continuity"]
+}
