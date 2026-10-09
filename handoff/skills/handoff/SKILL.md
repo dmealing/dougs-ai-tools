@@ -11,7 +11,7 @@ It is loaded **once** and replaces a session's worth of state. Rules for `CLAUDE
 
 **Where the file goes:** `~/.claude/handoffs/<project>/<stream>.md` by default (Part 3 defines both names, and the exact rule). The `HANDOFF_DIR` environment variable replaces `~/.claude/handoffs` with a directory of the user's choice, for example `/tmp`. A temporary directory used that way is wiped on restart.
 
-**Works with:** this skill is complete on its own and needs only a shell. `git` and `gh` are used when present and skipped when absent. Companion tools are planned in the same repository; nothing here depends on them.
+**Works with:** this skill is complete on its own and needs only a shell. `git` and `gh` are used when present and skipped when absent. The companion `pickup` skill in the same repository reads the files this one writes; nothing here depends on it.
 
 ---
 
@@ -133,7 +133,7 @@ Make it a plain file name: lower case, with `/` and spaces replaced by `-`. Bran
 
 ## The header is machine-read — keep it exact
 
-A later tool may parse these lines to find the right handoff, so the format is fixed:
+The companion `pickup` skill and other tools parse these lines to find the right handoff, so the format is fixed:
 
 ```markdown
 **Project:** `<project>`
@@ -348,7 +348,7 @@ Your final message contains the **absolute path on its own line**, plus the coun
 wc -lm "$dir/<stream>.md"   # -m counts characters; -c would count bytes
 ```
 
-Tell the user how to resume: start a new session in the same repository and paste the path, for example `Read <path> and continue from it`.
+Tell the user how to resume: start a new session in the same repository and paste the path, for example `Read <path> and continue from it`. If the `pickup` skill is installed, `/pickup <stream>` in the new session finds the file without the path.
 
 Then stop. See Part 2.
 

@@ -3,7 +3,7 @@
 # in ../../lib/test-install-skill.sh; every one runs against a throwaway config
 # directory, so nothing under the real Claude Code configuration is touched.
 #
-# Run: sh handoff/tests/test-install.sh
+# Run: sh pickup/tests/test-install.sh
 
 set -u
 
@@ -15,9 +15,9 @@ repo=$(dirname -- "$root")
 # shellcheck disable=SC2034
 {
 	installer="$root/install.sh"
-	skill_name=handoff
-	skill_src="$root/skills/handoff"
-	skill_files='SKILL.md'
+	skill_name=pickup
+	skill_src="$root/skills/pickup"
+	skill_files='SKILL.md list-handoffs.sh'
 }
 
 # shellcheck source=/dev/null
