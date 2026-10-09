@@ -160,6 +160,8 @@ The path above is from the repository root; the script itself runs from anywhere
 
 [pickup](../pickup/) (experimental) resumes from the files this skill writes, without pasting a path. This skill does not need it.
 
+[context-nudge](../context-nudge/) tells you when the context window is filling, which is the usual time to hand off. This skill does not need it either.
+
 ## Acknowledgements
 
 This skill drew on [claude-code-handoff-skill](https://github.com/ostikwhy-blip/claude-code-handoff-skill) by ostikwhy-blip (MIT licence), a reference for the discipline of verifying before writing, and for the wording of the "confident fiction" and "stranger test" passages. That project's copyright line and permission notice are in [NOTICE](../NOTICE).

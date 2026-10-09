@@ -11,6 +11,10 @@
 #   skill_files  the file names to install from it, separated by spaces
 #   skill_hint   one line printed after a successful install
 #
+# A tool that installs something other than a skill parses its own options and
+# calls the two steps install_skill is made of: install_config_dir, then
+# install_files with $dest_dir, $force and $uninstall set.
+#
 # POSIX sh; runs on macOS and Linux.
 
 # The four variables above come from the caller.
@@ -64,6 +68,13 @@ install_skill() {
 		esac
 	done
 
+	install_config_dir
+	dest_dir="$config_dir/skills/$skill_name"
+	install_files
+}
+
+# install_config_dir: sets $config_dir, the Claude Code configuration folder.
+install_config_dir() {
 	if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
 		config_dir=$CLAUDE_CONFIG_DIR
 	elif [ -n "${HOME:-}" ]; then
@@ -71,8 +82,12 @@ install_skill() {
 	else
 		install_skill_die "neither CLAUDE_CONFIG_DIR nor HOME is set"
 	fi
-	dest_dir="$config_dir/skills/$skill_name"
+}
 
+# install_files: copies $skill_files from $skill_src into $dest_dir, or with
+# $uninstall set to 1 removes them. $force set to 1 allows replacing or
+# removing an installed file that differs from the shipped one.
+install_files() {
 	for file in $skill_files; do
 		[ -f "$skill_src/$file" ] || install_skill_die "cannot find the file to install: $skill_src/$file"
 	done
@@ -92,7 +107,7 @@ install_skill() {
 		done
 		# Leave the folder in place if the user keeps other files in it.
 		rmdir "$dest_dir" 2>/dev/null || true
-		exit 0
+		return 0
 	fi
 
 	refuse_if_differing "already exists and differs from the shipped copy; not overwriting it. Re-run with --force to replace it."

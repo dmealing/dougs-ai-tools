@@ -32,7 +32,7 @@ check_portable_shell() {
 	for checked_file in "$@"; do
 		checked_name=$(basename -- "$checked_file")
 		for construct in 'mapfile' 'readarray' 'declare -A' '-printf' 'date -d' 'date --date' \
-			'readlink -f' 'realpath' 'sed -i' 'grep -P'; do
+			'readlink -f' 'realpath' 'sed -i' 'grep -P' '-newermt' 'cksum'; do
 			if grep -nF -- "$construct" "$checked_file" >/dev/null; then
 				fail "$checked_name uses a construct stock macOS lacks: $construct"
 			else
@@ -47,13 +47,28 @@ check_portable_shell() {
 	done
 }
 
-# check_plugin_names <tool> <tool folder> <repository folder>: the plugin
-# manifest, the marketplace entry and the skill agree on the tool's name.
-check_plugin_names() {
+# check_posix_shell <file>...: each shell file starts with a POSIX sh line and
+# avoids the constructs POSIX sh lacks.
+check_posix_shell() {
+	for checked_file in "$@"; do
+		checked_name=$(basename -- "$checked_file")
+		check "$checked_name starts with a POSIX sh line" [ "$(sed -n '1p' "$checked_file")" = "#!/bin/sh" ]
+		for construct in '-maxdepth' '[[' 'local ' 'echo -e' 'function '; do
+			if grep -qF -- "$construct" "$checked_file"; then
+				fail "$checked_name uses a construct POSIX sh lacks: $construct"
+			else
+				pass "$checked_name avoids: $construct"
+			fi
+		done
+	done
+}
+
+# check_plugin_manifest <tool> <tool folder> <repository folder>: the plugin
+# manifest and the marketplace entry agree on the tool's name.
+check_plugin_manifest() {
 	tool=$1
 	manifest="$2/.claude-plugin/plugin.json"
 	marketplace="$3/.claude-plugin/marketplace.json"
-	tool_skill="$2/skills/$tool/SKILL.md"
 	if python3 -c 'import json' >/dev/null 2>&1; then
 		if [ "$(json_value "$manifest" name)" = "$tool" ]; then
 			pass "plugin manifest is named $tool"
@@ -68,6 +83,13 @@ check_plugin_names() {
 	else
 		printf 'skip - python3 not usable; plugin and marketplace JSON not parsed\n'
 	fi
+}
+
+# check_plugin_names <tool> <tool folder> <repository folder>: the plugin
+# manifest, the marketplace entry and the skill agree on the tool's name.
+check_plugin_names() {
+	check_plugin_manifest "$@"
+	tool_skill="$2/skills/$tool/SKILL.md"
 	if [ "$(sed -n '1p' "$tool_skill")" = "---" ] && grep -qx "name: $tool" "$tool_skill"; then
 		pass "skill front matter names the skill $tool"
 	else
