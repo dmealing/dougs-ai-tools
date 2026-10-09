@@ -32,15 +32,13 @@ here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)
 # shellcheck source=/dev/null
 . "$here/context-nudge-lib.sh"
 
-input=$(cat)
-
 # No jq: stay silent. The status line is where that gets reported, once,
 # instead of an error on every prompt.
 cn_have_jq || exit 0
 
-# One jq run for both fields; jq start-up is the main cost of this script.
-fields=$(printf '%s' "$input" | "$cn_jq" -r '
-	def text: if type == "string" then gsub("[\n\r]"; " ") else "" end;
+# One jq run on the hook's stdin for both fields; jq start-up is the main
+# cost of this script.
+fields=$("$cn_jq" -r "$cn_def_text"'
 	(.session_id | text), (.transcript_path | text)' 2>/dev/null) || exit 0
 {
 	IFS= read -r sid
@@ -52,7 +50,7 @@ EOF
 # Without a session id a repeat cannot be told from a first sighting.
 cn_safe_id "${sid:-}" || exit 0
 [ -n "$cn_dir" ] || exit 0
-mkdir -p "$cn_dir" 2>/dev/null || exit 0
+[ -d "$cn_dir" ] || mkdir -p "$cn_dir" 2>/dev/null || exit 0
 
 # --- once a day: prune old files, refresh the plugin's script copies ---------
 now=$(date +%s)
@@ -70,7 +68,7 @@ elif [ ! -f "$bin/context-nudge-statusline.sh" ]; then
 else
 	sync_bin=0
 fi
-if [ "${1:-}" = --plugin ] && [ "$sync_bin" -eq 1 ] && [ "$here" != "$bin" ]; then
+if [ "${1:-}" = --plugin ] && [ "$sync_bin" -eq 1 ]; then
 	mkdir -p "$bin" 2>/dev/null || :
 	for script in context-nudge-lib.sh context-nudge-cache.sh context-nudge-statusline.sh; do
 		cmp -s "$here/$script" "$bin/$script" || cp "$here/$script" "$bin/$script" 2>/dev/null || :
@@ -82,8 +80,6 @@ if ! cn_read_cache "$sid" "$now"; then
 	# No status-line record, or one that is too old or has no usage in it.
 	# The transcript gives a token count but not the window size, so it is
 	# read only when the size has been stated.
-	cn_pct=''
-	cn_size=''
 	cn_is_uint "${CONTEXT_NUDGE_WINDOW_SIZE:-}" || exit 0
 	[ -n "${transcript:-}" ] && [ -r "$transcript" ] || exit 0
 	# The last main-conversation reply's input side, the count the reported
@@ -118,17 +114,11 @@ fi
 printf '%s\n' "$cn_level" >"$state" 2>/dev/null || :
 
 # --- the two messages ----------------------------------------------------------
-case "$cn_level" in
-1) advice='Still fine. Avoid starting a large new task in this session.' ;;
-2) advice='Finish what is open before starting something new. A handoff or a compact at the next clean break is worth considering.' ;;
-3) advice='Quality over a window this full is likely dropping. Wrap up the current thread, then hand off or compact.' ;;
-*) advice='Compaction is close. Stop starting new work: land or park what is open now, then hand off or compact.' ;;
-esac
 reading="${cn_shown}% used ($((cn_used / 1000))k of $((cn_window / 1000))k tokens) - ${cn_label_text}"
 
 # The advice is for the user. The model gets the reading as one sentence of
 # fact, worded so that it cannot be taken for an order.
-"$cn_jq" -n --arg reading "$reading" --arg advice "$advice" '{
+"$cn_jq" -n --arg reading "$reading" --arg advice "$cn_advice" '{
 	systemMessage: ("Context " + $reading + ". " + $advice),
 	hookSpecificOutput: {
 		hookEventName: "UserPromptSubmit",

@@ -3,7 +3,8 @@
 #
 # One implementation of everything the prompt hook, the cache writer and the
 # status line have in common: where files live, how the context percentage is
-# worked out from the status-line JSON, the bands and the label words.
+# worked out from the status-line JSON, the bands, the label words and the
+# advice.
 #
 # POSIX sh; runs on stock macOS (bash 3.2, BSD userland) and GNU/Linux.
 # jq is the one dependency. Nothing here runs it without checking cn_have_jq.
@@ -54,13 +55,15 @@ cn_safe_id() {
 # --- bands -------------------------------------------------------------------
 
 # cn_assess: works out where the session stands, from $cn_pct, $cn_tokens and
-# $cn_size (set by cn_parse_usage or cn_read_cache) and the environment. Sets
+# $cn_size (set by cn_parse_usage, cn_read_cache or the hook's transcript
+# fallback) and the environment. Sets
 #   $cn_window  the context maximum, in tokens
 #   $cn_used    the tokens in the window
 #   $cn_shown   the percentage of the maximum in use
 #   $cn_level   0 below the first band, 1 to 3 for the band reached, 4 once
 #               within the margin of the compaction point
 #   $cn_label_text  the word for that level
+#   $cn_advice  the words for the user that go with that level
 # Fails, setting none of them, when the maximum or the usage is not known:
 # nothing is ever reported against an assumed window size.
 #
@@ -105,12 +108,14 @@ cn_assess() {
 	cn_band 3 "${CONTEXT_NUDGE_BAND3_PERCENT:-}" 80 "${CONTEXT_NUDGE_BAND3_TOKENS:-}" 300000
 	[ "$cn_used" -lt "$cn_repeat" ] || cn_level=4
 
+	# The level owns its label and its advice: one table, so the two can
+	# never disagree about which levels exist.
 	case "$cn_level" in
-	0) cn_label_text=${CONTEXT_NUDGE_LABEL_OK:-ok} ;;
-	1) cn_label_text=${CONTEXT_NUDGE_LABEL_BAND1:-filling} ;;
-	2) cn_label_text=${CONTEXT_NUDGE_LABEL_BAND2:-high} ;;
-	3) cn_label_text=${CONTEXT_NUDGE_LABEL_BAND3:-very high} ;;
-	*) cn_label_text=${CONTEXT_NUDGE_LABEL_CRITICAL:-critical} ;;
+	0) cn_label_text=${CONTEXT_NUDGE_LABEL_OK:-ok} cn_advice='' ;;
+	1) cn_label_text=${CONTEXT_NUDGE_LABEL_BAND1:-filling} cn_advice='Still fine. Avoid starting a large new task in this session.' ;;
+	2) cn_label_text=${CONTEXT_NUDGE_LABEL_BAND2:-high} cn_advice='Finish what is open before starting something new. A handoff or a compact at the next clean break is worth considering.' ;;
+	3) cn_label_text=${CONTEXT_NUDGE_LABEL_BAND3:-very high} cn_advice='Quality over a window this full is likely dropping. Wrap up the current thread, then hand off or compact.' ;;
+	*) cn_label_text=${CONTEXT_NUDGE_LABEL_CRITICAL:-critical} cn_advice='Compaction is close. Stop starting new work: land or park what is open now, then hand off or compact.' ;;
 	esac
 	return 0
 }
@@ -151,14 +156,16 @@ cn_band() {
 #
 # The percentage is context_window.used_percentage when Claude Code reports
 # it; the field is read by that full path, because rate_limits holds other
-# fields with the same name, and null means not known. Otherwise it is context_window.total_input_tokens over
-# context_window.context_window_size, the same input-only count the reported
-# percentage is documented to use.
-# The jq program is literal text; nothing in it is for the shell to expand.
+# fields with the same name, and null means not known. Otherwise it is
+# context_window.total_input_tokens over context_window.context_window_size,
+# the same input-only count the reported percentage is documented to use.
+# The jq programs are text for jq alone; cn_def_text is the one shared piece,
+# interpolated where a program needs it rather than copied into it.
 # shellcheck disable=SC2016
-cn_usage_filter='
+cn_def_text='def text: if type == "string" then gsub("[\n\r]"; " ") else "" end;'
+# shellcheck disable=SC2016
+cn_usage_filter="$cn_def_text"'
 def num: if type == "number" and . >= 0 then floor else null end;
-def text: if type == "string" then gsub("[\n\r]"; " ") else "" end;
 (.context_window | if type == "object" then . else {} end) as $c
 | ($c.context_window_size | num) as $size
 | ($c.total_input_tokens | num) as $tokens
@@ -201,7 +208,7 @@ cn_record() {
 	cn_parse_usage "$1" || return 0
 	cn_safe_id "$cn_sid" || return 0
 	[ -n "$cn_dir" ] || return 0
-	mkdir -p "$cn_dir" 2>/dev/null || return 0
+	[ -d "$cn_dir" ] || mkdir -p "$cn_dir" 2>/dev/null || return 0
 	cn_tmp="$cn_dir/$cn_sid.$$.tmp"
 	# Written whole and then renamed: Claude Code cancels a status-line run
 	# that is still going when the next one starts.
@@ -214,23 +221,28 @@ cn_record() {
 }
 
 # cn_read_cache <session id> <now, in epoch seconds>: sets $cn_pct, $cn_tokens
-# and $cn_size from the file cn_record wrote. Fails when there is no file, the
-# file holds no usage, or it was written more than
+# and $cn_size from the file cn_record wrote, and leaves all three empty when
+# it fails, so a caller never has to clean up after a rejected record. Fails
+# when there is no file, the file holds no usage, or it was written more than
 # CONTEXT_NUDGE_MAX_AGE seconds ago (0 turns the age check off): a figure that
 # old may no longer be true, and no figure is better than a wrong one.
 cn_read_cache() {
 	cn_pct=''
 	cn_tokens=''
 	cn_size=''
+	cn_p='' cn_t='' cn_s=''
 	[ -n "$cn_dir" ] && [ -r "$cn_dir/$1.usage" ] || return 1
-	read -r cn_pct cn_tokens cn_size cn_written <"$cn_dir/$1.usage" || :
+	read -r cn_p cn_t cn_s cn_written <"$cn_dir/$1.usage" || :
 	cn_number "${CONTEXT_NUDGE_MAX_AGE:-}" 3600
 	if [ "$cn_value" -gt 0 ]; then
 		cn_is_uint "${cn_written:-}" && cn_is_uint "${2:-}" || return 1
 		[ $(($2 - cn_written)) -le "$cn_value" ] || return 1
 	fi
-	cn_is_uint "$cn_pct" || cn_pct=''
-	cn_is_uint "$cn_tokens" || cn_tokens=''
-	cn_is_uint "$cn_size" || cn_size=''
-	[ -n "$cn_pct" ] || [ -n "$cn_tokens" ]
+	cn_is_uint "$cn_p" || cn_p=''
+	cn_is_uint "$cn_t" || cn_t=''
+	cn_is_uint "$cn_s" || cn_s=''
+	[ -n "$cn_p" ] || [ -n "$cn_t" ] || return 1
+	cn_pct=$cn_p
+	cn_tokens=$cn_t
+	cn_size=$cn_s
 }

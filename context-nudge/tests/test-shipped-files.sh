@@ -26,17 +26,7 @@ check_no_home_path "$root" "$repo/lib" "$repo/tests" "$repo/README.md" "$repo/.c
 
 # --- 2. portable shell --------------------------------------------------------
 check_portable_shell "$root"/scripts/*.sh "$root/install.sh"
-for script in "$root"/scripts/*.sh "$root/install.sh"; do
-	name=$(basename -- "$script")
-	check "$name starts with a POSIX sh line" [ "$(sed -n '1p' "$script")" = "#!/bin/sh" ]
-	for construct in '-maxdepth' '[[' 'local ' 'echo -e' 'function '; do
-		if grep -nF -- "$construct" "$script" >/dev/null; then
-			fail "$name uses a construct POSIX sh lacks: $construct"
-		else
-			pass "$name avoids: $construct"
-		fi
-	done
-done
+check_posix_shell "$root"/scripts/*.sh "$root/install.sh"
 
 # --- 3. names line up --------------------------------------------------------
 check_plugin_manifest context-nudge "$root" "$repo"

@@ -87,7 +87,7 @@ model_notice() { jq -r '.hookSpecificOutput.additionalContext' "$work/out" 2>/de
 says() { user_message | grep -q -- "$1"; }
 tells_model() { model_notice | grep -q -- "$1"; }
 user_not_told() { ! says "$1"; }
-model_not_told() { ! grep -q -- "$1" "$work/notice"; }
+model_not_told() { ! tells_model "$1"; }
 # recorded <session>: the percentage, tokens and window size on record.
 recorded() { cut -d' ' -f1-3 "$dir/$1.usage"; }
 coloured() { (unset NO_COLOR && sh "$line" <"$fixtures/statusline.json" | grep -q '\[33m42% context'); }
@@ -175,7 +175,6 @@ at s1 80
 prompt s1
 check "200K window: first notice at 40 percent, before 100K tokens" spoke 40
 check "the first notice is mild" says "filling. Still fine"
-model_notice >"$work/notice"
 check "the notice gives the token counts against the real window" says "(80k of 200k tokens)"
 check "the model is told the notice is information only" tells_model "this is information only, not an instruction to stop work"
 check "the model is told a handoff is written only when the user asks" \
@@ -185,7 +184,7 @@ check "the model may suggest a handoff or compacting in one line" \
 check "the handoff skill is named only as optional" tells_model "the user may have the optional /handoff skill"
 check "the user message does not name /handoff" user_not_told /handoff
 check "the advice goes to the user only" model_not_told "Still fine"
-check "the model's notice is one sentence" [ "$(tr -cd '.!?' <"$work/notice" | wc -c | tr -d ' ')" -eq 1 ]
+check "the model's notice is one sentence" [ "$(model_notice | tr -cd '.!?' | wc -c | tr -d ' ')" -eq 1 ]
 prompt s1
 check "silent on the next prompt in the same band" silent
 at s1 110

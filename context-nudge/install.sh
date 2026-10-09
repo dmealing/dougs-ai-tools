@@ -214,9 +214,12 @@ EOF
 # only those: an entry is removed when the marker lists it and it still holds
 # the exact command this script wrote.
 unmerge_settings() {
+	# Every refusal that leaves the settings file alone ends with the same
+	# sentence, and the test greps for it, so it lives in one place.
+	manual='Remove the context-nudge entries from it yourself.'
 	if [ ! -f "$marker" ]; then
 		if grep -q 'context-nudge-' "$settings" 2>/dev/null; then
-			printf 'This script did not write %s, so it is unchanged. Remove the context-nudge entries from it yourself.\n' "$settings"
+			printf 'This script did not write %s, so it is unchanged. %s\n' "$settings" "$manual"
 		fi
 		return 0
 	fi
@@ -225,7 +228,7 @@ unmerge_settings() {
 		return 0
 	fi
 	if ! command -v "$jq_bin" >/dev/null 2>&1; then
-		printf 'jq was not found, so %s is unchanged. Remove the context-nudge entries from it yourself.\n' "$settings"
+		printf 'jq was not found, so %s is unchanged. %s\n' "$settings" "$manual"
 		return 0
 	fi
 	rm_hook=0
@@ -233,7 +236,7 @@ unmerge_settings() {
 	! grep -qx hook "$marker" || rm_hook=1
 	! grep -qx statusline "$marker" || rm_status=1
 	before=$("$jq_bin" . "$settings" 2>/dev/null) || {
-		printf '%s is not valid JSON, so it is unchanged. Remove the context-nudge entries from it yourself.\n' "$settings"
+		printf '%s is not valid JSON, so it is unchanged. %s\n' "$settings" "$manual"
 		return 0
 	}
 	after=$(printf '%s' "$before" | "$jq_bin" \
@@ -249,7 +252,7 @@ unmerge_settings() {
 		 else . end)
 		| (if $rm_status == "1" and (.statusLine | type) == "object" and .statusLine.command == $status
 		   then del(.statusLine) else . end)' 2>/dev/null) || {
-		printf 'Cannot edit %s, so it is unchanged. Remove the context-nudge entries from it yourself.\n' "$settings"
+		printf 'Cannot edit %s, so it is unchanged. %s\n' "$settings" "$manual"
 		return 0
 	}
 	if [ "$before" = "$after" ]; then

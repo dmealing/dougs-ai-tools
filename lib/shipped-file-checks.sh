@@ -36,6 +36,22 @@ check_portable_shell() {
 	done
 }
 
+# check_posix_shell <file>...: each shell file starts with a POSIX sh line and
+# avoids the constructs POSIX sh lacks.
+check_posix_shell() {
+	for checked_file in "$@"; do
+		checked_name=$(basename -- "$checked_file")
+		check "$checked_name starts with a POSIX sh line" [ "$(sed -n '1p' "$checked_file")" = "#!/bin/sh" ]
+		for construct in '-maxdepth' '[[' 'local ' 'echo -e' 'function '; do
+			if grep -qF -- "$construct" "$checked_file"; then
+				fail "$checked_name uses a construct POSIX sh lacks: $construct"
+			else
+				pass "$checked_name avoids: $construct"
+			fi
+		done
+	done
+}
+
 # check_plugin_manifest <tool> <tool folder> <repository folder>: the plugin
 # manifest and the marketplace entry agree on the tool's name.
 check_plugin_manifest() {
