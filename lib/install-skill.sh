@@ -34,6 +34,18 @@ install_skill_die() {
 	exit 1
 }
 
+# refuse_if_differing <message tail>: die if any installed file exists, differs
+# from the shipped copy, and --force was not given. The message is the path
+# followed by the tail, so only the tail is passed in.
+refuse_if_differing() {
+	for file in $skill_files; do
+		dest="$dest_dir/$file"
+		if [ -e "$dest" ] && [ "$force" -eq 0 ] && ! cmp -s "$skill_src/$file" "$dest"; then
+			install_skill_die "$dest $1"
+		fi
+	done
+}
+
 install_skill() {
 	force=0
 	uninstall=0
@@ -68,12 +80,7 @@ install_skill() {
 	# Every refusal is decided before anything is copied or removed, so a
 	# refused run leaves the installed skill exactly as it was.
 	if [ "$uninstall" -eq 1 ]; then
-		for file in $skill_files; do
-			dest="$dest_dir/$file"
-			if [ -e "$dest" ] && [ "$force" -eq 0 ] && ! cmp -s "$skill_src/$file" "$dest"; then
-				install_skill_die "$dest differs from the shipped copy; not removing it. Re-run with --uninstall --force to remove it anyway."
-			fi
-		done
+		refuse_if_differing "differs from the shipped copy; not removing it. Re-run with --uninstall --force to remove it anyway."
 		for file in $skill_files; do
 			dest="$dest_dir/$file"
 			if [ -e "$dest" ]; then
@@ -88,12 +95,7 @@ install_skill() {
 		exit 0
 	fi
 
-	for file in $skill_files; do
-		dest="$dest_dir/$file"
-		if [ -e "$dest" ] && [ "$force" -eq 0 ] && ! cmp -s "$skill_src/$file" "$dest"; then
-			install_skill_die "$dest already exists and differs from the shipped copy; not overwriting it. Re-run with --force to replace it."
-		fi
-	done
+	refuse_if_differing "already exists and differs from the shipped copy; not overwriting it. Re-run with --force to replace it."
 
 	mkdir -p "$dest_dir"
 	copied=0

@@ -238,6 +238,13 @@ pull_request_state() {
 		}'
 }
 
+# The candidate evidence lines all repeat the same two-space indent and trailing
+# newline. Writing that bookkeeping once keeps the frozen output format in one
+# place. Each appends to the caller's reasons/flags variable.
+add_reason() { reasons="$reasons  reason: $1$nl"; }
+add_weak() { reasons="$reasons  weak: $1$nl"; }
+add_flag() { flags="$flags  flag: $1$nl"; }
+
 # --- the store and the project: the handoff skill's own rule ---------------------
 
 if [ -z "${HANDOFF_DIR:-}" ] && [ -z "${CLAUDE_CONFIG_DIR:-}" ] && [ -z "${HOME:-}" ]; then
@@ -364,7 +371,7 @@ for folder in "$root"/*/; do
 				written=unknown
 				age=''
 			fi
-			flags="${flags}  flag: header-incomplete no usable **Written:** date$nl"
+			add_flag "header-incomplete no usable **Written:** date"
 		fi
 		if [ -z "$age" ]; then
 			age_text='age unknown'
@@ -376,25 +383,24 @@ for folder in "$root"/*/; do
 			age_text="$age day(s) ago"
 		fi
 		if [ -n "$age" ] && [ "$age" -gt "$stale_days" ]; then
-			flags="${flags}  flag: stale written $age days ago, limit $stale_days$nl"
+			add_flag "stale written $age days ago, limit $stale_days"
 		fi
 
 		# The name the user gave.
 		if [ -n "$wanted" ]; then
 			stream_key=$(normalise "$stream")
-			if [ "$stream_key" = "$wanted" ]; then
+			case "$stream_key" in
+			"$wanted")
 				score=$((score + 200))
 				name_matched=1
-				reasons="${reasons}  reason: name-exact +200 the name given is this stream's name$nl"
-			else
-				case "$stream_key" in
-				*"$wanted"*)
-					score=$((score + 100))
-					name_matched=1
-					reasons="${reasons}  reason: name-partial +100 the name given is part of this stream's name$nl"
-					;;
-				esac
-			fi
+				add_reason "name-exact +200 the name given is this stream's name"
+				;;
+			*"$wanted"*)
+				score=$((score + 100))
+				name_matched=1
+				add_reason "name-partial +100 the name given is part of this stream's name"
+				;;
+			esac
 		fi
 
 		# The checkout it was written in. $elsewhere is 1 when that checkout
@@ -402,13 +408,13 @@ for folder in "$root"/*/; do
 		elsewhere=0
 		recorded_repo_dir=''
 		if [ -z "$recorded_repo" ]; then
-			flags="${flags}  flag: header-incomplete no **Repo:** path$nl"
+			add_flag "header-incomplete no **Repo:** path"
 		elif recorded_repo_dir=$(physical "$recorded_repo"); then
 			if [ "$recorded_repo_dir" = "$here" ]; then
 				score=$((score + 40))
-				reasons="${reasons}  reason: repo-path +40 the recorded repository path is this checkout$nl"
+				add_reason "repo-path +40 the recorded repository path is this checkout"
 			else
-				flags="${flags}  flag: different-checkout the recorded repository path exists and is not this checkout$nl"
+				add_flag "different-checkout the recorded repository path exists and is not this checkout"
 				recorded_common=$(common_dir "$recorded_repo_dir") || recorded_common=''
 				if [ -z "$recorded_common" ] || [ "$recorded_common" != "$here_common" ]; then
 					elsewhere=1
@@ -416,26 +422,26 @@ for folder in "$root"/*/; do
 			fi
 		else
 			recorded_repo_dir=''
-			flags="${flags}  flag: repo-missing the recorded repository path no longer exists$nl"
+			add_flag "repo-missing the recorded repository path no longer exists"
 		fi
 
 		# The branch it was written on.
 		if [ -z "$recorded_branch" ]; then
-			flags="${flags}  flag: header-incomplete no **Branch:** name$nl"
+			add_flag "header-incomplete no **Branch:** name"
 		fi
 		case "$recorded_kind" in
 		named)
 			[ "$elsewhere" -eq 1 ] || named_branches=$((named_branches + 1))
 			if [ "$recorded_branch" = "$current_branch" ]; then
 				score=$((score + 40))
-				reasons="${reasons}  reason: branch +40 the recorded branch is the branch checked out here$nl"
+				add_reason "branch +40 the recorded branch is the branch checked out here"
 			else
-				flags="${flags}  flag: different-branch recorded on $recorded_branch; here is $current_branch$nl"
+				add_flag "different-branch recorded on $recorded_branch; here is $current_branch"
 			fi
 			;;
 		default)
 			if [ "$recorded_branch" = "$current_branch" ]; then
-				reasons="${reasons}  weak: default-branch +0 both are on $current_branch; a default branch does not identify a stream$nl"
+				add_weak "default-branch +0 both are on $current_branch; a default branch does not identify a stream"
 			fi
 			;;
 		detached)
@@ -445,7 +451,7 @@ for folder in "$root"/*/; do
 				else
 					same='not the same commit'
 				fi
-				reasons="${reasons}  weak: detached +0 both are on a detached HEAD ($same); a detached HEAD does not identify a stream$nl"
+				add_weak "detached +0 both are on a detached HEAD ($same); a detached HEAD does not identify a stream"
 			fi
 			;;
 		esac
@@ -466,7 +472,7 @@ for folder in "$root"/*/; do
 				if branch_exists "$recorded_repo_dir" "$recorded_branch"; then found=1; fi
 			fi
 			if [ "$looked" -eq 1 ] && [ "$found" -eq 0 ]; then
-				flags="${flags}  flag: branch-missing the recorded branch no longer exists$nl"
+				add_flag "branch-missing the recorded branch no longer exists"
 			fi
 			;;
 		esac
@@ -511,8 +517,8 @@ while [ "$index" -le "$count" ]; do
 		[ "$written" != unknown ] || written=''
 		pr=$(pull_request_state "$branch" "$written")
 		case "$pr" in
-		merged*) flags="${flags}  flag: pr-merged the pull request for $branch is merged (${pr#merged })$nl" ;;
-		closed*) flags="${flags}  flag: pr-closed the pull request for $branch was closed without merging (${pr#closed })$nl" ;;
+		merged*) add_flag "pr-merged the pull request for $branch is merged (${pr#merged })" ;;
+		closed*) add_flag "pr-closed the pull request for $branch was closed without merging (${pr#closed })" ;;
 		esac
 	fi
 	eval "c_pr_$index=\$pr c_flags_$index=\$flags"

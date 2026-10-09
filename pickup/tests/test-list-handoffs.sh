@@ -93,16 +93,20 @@ block_has() {
 		/^\[[0-9]+\] / { inside = (substr($0, index($0, "] ") + 2) == stream) }
 		inside { print }' "$work/out" | grep -qF -- "$2"
 }
-block_lacks() { ! block_has "$1" "$2"; }
+# store_state: a fingerprint of the store's file names and contents, used to
+# prove the script changed nothing.
+store_state() {
+	(cd "$store" && find . | LC_ALL=C sort && find . -type f -exec cksum {} +)
+}
 
 # --- a single match --------------------------------------------------------------
 store="$work/store-single"
 checkout="$work/parcel-tracker"
 new_repo "$checkout" fix/label-printer
 write_handoff "$store" parcel-tracker fix-label-printer parcel-tracker "$checkout" fix/label-printer "$today"
-before=$(cd "$store" && find . | LC_ALL=C sort && find . -type f -exec cksum {} +)
+before=$(store_state)
 list "$store" "$checkout"
-after=$(cd "$store" && find . | LC_ALL=C sort && find . -type f -exec cksum {} +)
+after=$(store_state)
 check "single: exits 0" [ "$status" -eq 0 ]
 check "single: confidence is single" has_line "confidence: single"
 check "single: proposes the handoff" has_line "proposed: 1 fix-label-printer"

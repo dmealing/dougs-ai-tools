@@ -44,8 +44,10 @@ all_reported() {
 }
 
 # The file the refusal cases modify: the last one, so a refusal has to be
-# decided before the files ahead of it are touched.
+# decided before the files ahead of it are touched; the first one is the one a
+# refusal must leave in place.
 last_file=${skill_files##* }
+first_file=${skill_files%% *}
 
 # --- install into an empty config directory --------------------------------
 cfg="$work/fresh"
@@ -78,7 +80,7 @@ check "--force replaces the file" all_installed "$dest_dir"
 printf 'my own edits\n' >"$dest"
 run_installer "$cfg" --uninstall
 check "--uninstall of a modified copy fails" [ "$status" -ne 0 ]
-check "--uninstall refusal removes nothing" [ -f "$dest_dir/${skill_files%% *}" ]
+check "--uninstall refusal removes nothing" [ -f "$dest_dir/$first_file" ]
 check "--uninstall refusal keeps the modified file" [ "$(cat "$dest")" = "my own edits" ]
 run_installer "$cfg" --uninstall --force
 check "--uninstall --force exits 0" [ "$status" -eq 0 ]

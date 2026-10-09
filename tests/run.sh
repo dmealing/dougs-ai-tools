@@ -9,9 +9,12 @@ here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)
 repo=$(dirname -- "$here")
 
 status=0
-for tool in handoff pickup; do
+for run_sh in "$repo"/*/tests/run.sh; do
+	[ -f "$run_sh" ] || continue
+	tool=${run_sh#"$repo/"}
+	tool=${tool%%/*}
 	printf '==== %s\n' "$tool"
-	sh "$repo/$tool/tests/run.sh" || status=1
+	sh "$run_sh" || status=1
 done
 
 printf '==== shared\n'
