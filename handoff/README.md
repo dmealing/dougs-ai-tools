@@ -65,22 +65,26 @@ Install it one way, not both, or the skill is listed twice.
 ## Where handoffs are stored
 
 ```
-${HANDOFF_DIR:-/tmp}/<project>/<stream>.md    live handoffs
-${HANDOFF_DIR:-/tmp}/<project>/done/          finished streams
+~/.claude/handoffs/<project>/<stream>.md    live handoffs
+~/.claude/handoffs/<project>/done/          finished streams
 ```
 
 - **`<project>`** is the directory name of the repository's main working tree (the first entry of `git worktree list --porcelain`), so every worktree of one repository shares one folder. Outside a git repository it is the name of the current directory.
 - **`<stream>`** names the thread of work, usually the branch with `/` replaced by `-`. Several streams can be live in one project at once.
 
-Handoffs live outside the repository so they cannot be committed by accident.
+Handoffs live outside the repository so they cannot be committed by accident. If `CLAUDE_CONFIG_DIR` is set, the `handoffs` folder is created there instead of in `~/.claude`.
 
-### `/tmp` is not durable
+Finished handoffs accumulate in `done/` and are never deleted automatically. Delete that folder's contents yourself when you no longer want them.
 
-By default handoffs go under `/tmp`. That directory is cleared on reboot, and the operating system also deletes files in it that have not been used for a few days (about three days on macOS; on Linux it depends on the distribution). That suits a handoff you pick up the same day. To keep handoffs longer, point `HANDOFF_DIR` at a durable directory in your shell profile:
+### Storing them somewhere else
+
+Set `HANDOFF_DIR` to replace `~/.claude/handoffs` with another directory, for example in your shell profile:
 
 ```sh
-export HANDOFF_DIR="$HOME/.local/state/handoffs"
+export HANDOFF_DIR=/tmp
 ```
+
+Handoffs then go to `/tmp/<project>/<stream>.md`. A temporary directory such as `/tmp` is wiped on restart, so use one only for handoffs you pick up the same day.
 
 ## What a handoff looks like
 
@@ -125,10 +129,10 @@ The first four header fields (`**Project:**`, `**Repo:**`, `**Branch:**`, `**Wri
 The skill ends by printing the file's absolute path. Start a new Claude Code session in the same repository and paste it:
 
 ```
-Read /tmp/parcel-tracker/fix-webhook-retry-backoff.md and continue from it.
+Read ~/.claude/handoffs/parcel-tracker/fix-webhook-retry-backoff.md and continue from it.
 ```
 
-To see what is live for a project, list its folder: `ls "${HANDOFF_DIR:-/tmp}/<project>/"`.
+The printed path is absolute; `~` is used here only to keep the example short. To see what is live for a project, list its folder: `ls ~/.claude/handoffs/<project>/`.
 
 ## Tests
 

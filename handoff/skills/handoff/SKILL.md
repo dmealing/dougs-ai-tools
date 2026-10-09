@@ -9,7 +9,7 @@ A handoff carries **what the next session cannot recover on its own** — above 
 
 It is loaded **once** and replaces a session's worth of state. Rules for `CLAUDE.md`/`AGENTS.md` do not apply: those are paid every session, so dilution compounds. Do not carry an always-loaded-file instinct into it.
 
-**Where the file goes:** `${HANDOFF_DIR:-/tmp}/<project>/<stream>.md` (Part 3 defines both names). **`/tmp` is not durable:** it is cleared on reboot, and the operating system deletes files there that have not been touched for a few days. Setting the `HANDOFF_DIR` environment variable to a durable directory avoids that. If the handoff is going under `/tmp`, say so in one line when you print the path.
+**Where the file goes:** `~/.claude/handoffs/<project>/<stream>.md` by default (Part 3 defines both names, and the exact rule). The `HANDOFF_DIR` environment variable replaces `~/.claude/handoffs` with a directory of the user's choice, for example `/tmp`. A temporary directory used that way is wiped on restart.
 
 **Works with:** this skill is complete on its own and needs only a shell. `git` and `gh` are used when present and skipped when absent. Companion tools are planned in the same repository; nothing here depends on them.
 
@@ -84,7 +84,7 @@ If you intend to do anything after the handoff, you are not at a handoff.
 Once the file is written, your message ends with the absolute path of the file on its own line, for example:
 
 ```
-/tmp/<project>/<stream>.md
+<handoff root>/<project>/<stream>.md
 ```
 
 plus its `wc -lm` counts. Then you stop. No further tool calls. No "while you read that, I'll…". No starting the next item.
@@ -100,9 +100,11 @@ plus its `wc -lm` counts. Then you stop. No further tool calls. No "while you re
 # PART 3 — WHERE IT GOES, AND THE LIFECYCLE
 
 ```
-${HANDOFF_DIR:-/tmp}/<project>/<stream>.md   <- LIVE. Nothing else lives here.
-${HANDOFF_DIR:-/tmp}/<project>/done/         <- archived. Finished streams.
+<root>/<project>/<stream>.md   <- LIVE. Nothing else lives here.
+<root>/<project>/done/         <- archived. Finished streams.
 ```
+
+`<root>` is `$HANDOFF_DIR` when that variable is set. Otherwise it is the `handoffs` folder in the Claude Code configuration directory: `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/handoffs`. It sits outside every repository, so a handoff cannot be committed by accident.
 
 **Top level means live.** Listing `<project>/` must return only streams a fresh session could legitimately pick up.
 
@@ -115,7 +117,8 @@ Resolve it with this, which runs unchanged on macOS and Linux:
 ```bash
 main=$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')
 project=$(basename "${main:-$PWD}")
-dir="${HANDOFF_DIR:-/tmp}/$project"
+root="${HANDOFF_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/handoffs}"
+dir="$root/$project"
 mkdir -p "$dir"
 echo "$dir"
 ```
@@ -149,7 +152,10 @@ When the work a handoff describes is **done** — merged, shipped, closed, aband
 
 ```bash
 mkdir -p "$dir/done"
-mv "$dir/<stream>.md" "$dir/done/"
+target="$dir/done/<stream>.md"
+# A reused stream name must not overwrite an earlier archive.
+if [ -e "$target" ]; then target="$dir/done/<stream>-$(date +%Y%m%d-%H%M%S).md"; fi
+mv "$dir/<stream>.md" "$target"
 ```
 
 Say so in one line: `Stream finished — archived to done/, nothing to pick up.`
@@ -169,6 +175,7 @@ A continuing stream can run ten or twenty handoffs deep. Editing carries the old
 **The procedure:**
 
 1. **Read** the existing file for this stream, if there is one.
+   - **Check it is yours before you replace it.** Two repositories whose folders share a name share a `<project>` folder, and two branch names can shorten to the same file name. If the existing file's `**Repo:**` is a checkout of a different repository, or its `**Branch:**` is a different branch that is still live, it is someone else's stream: do not overwrite it. Pick a distinct file name for yours (add the repository owner, or the part of the branch name that differs) and say in one line that you did.
 2. **Re-derive every line.** For each thing in the old file, ask: *is this still true, today, verified this session?*
    - Done → **drop it.** No strikethrough, no "(completed)". Gone.
    - Still true → carry it forward, rewritten.
@@ -341,7 +348,7 @@ Your final message contains the **absolute path on its own line**, plus the coun
 wc -lm "$dir/<stream>.md"   # -m counts characters; -c would count bytes
 ```
 
-Tell the user how to resume: start a new session in the same repository and paste the path, for example `Read <path> and continue from it`. If the file is under `/tmp`, add one line saying it will not survive a reboot.
+Tell the user how to resume: start a new session in the same repository and paste the path, for example `Read <path> and continue from it`.
 
 Then stop. See Part 2.
 

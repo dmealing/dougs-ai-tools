@@ -14,12 +14,8 @@ shipped="$root/skills/handoff/SKILL.md"
 work=$(mktemp -d "${TMPDIR:-/tmp}/handoff-install-test.XXXXXX") || exit 1
 trap 'rm -rf "$work"' EXIT INT TERM
 
-failures=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-	printf 'FAIL - %s\n' "$1"
-	failures=$((failures + 1))
-}
+# shellcheck source=/dev/null
+. "$here/helpers.sh"
 check() {
 	# check <description> <command...>: passes when the command succeeds.
 	desc=$1
@@ -113,8 +109,4 @@ check "unknown option prints usage" output_has "Usage:"
 run_installer "$cfg" --help
 check "--help exits 0" [ "$status" -eq 0 ]
 
-if [ "$failures" -ne 0 ]; then
-	printf '%s check(s) failed\n' "$failures"
-	exit 1
-fi
-printf 'all install checks passed\n'
+finish install

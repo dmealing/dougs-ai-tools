@@ -14,12 +14,8 @@ root=$(dirname -- "$here")
 repo=$(dirname -- "$root")
 skill="$root/skills/handoff/SKILL.md"
 
-failures=0
-pass() { printf 'ok   - %s\n' "$1"; }
-fail() {
-	printf 'FAIL - %s\n' "$1"
-	failures=$((failures + 1))
-}
+# shellcheck source=/dev/null
+. "$here/helpers.sh"
 
 # --- 1. no absolute home path ----------------------------------------------
 # A user directory under the Linux, macOS or Windows home root.
@@ -118,8 +114,32 @@ else
 	printf 'skip - git not found; project-name rule not exercised\n'
 fi
 
-if [ "$failures" -ne 0 ]; then
-	printf '%s check(s) failed\n' "$failures"
-	exit 1
+# --- the store-root rule in the skill, run for real ---------------------------
+# Same approach: restate the documented line and check all three cases.
+# The single quotes are deliberate: the literal text is evaluated below.
+# shellcheck disable=SC2016
+root_rule='root="${HANDOFF_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/handoffs}"'
+store_root() (
+	eval "$root_rule"
+	printf '%s\n' "$root"
+)
+expect_root() {
+	# expect_root <description> <expected> <actual>
+	if [ "$2" = "$3" ]; then pass "$1"; else fail "$1: got '$3'"; fi
+}
+expect_root "default store is the handoffs folder under the home .claude" \
+	"/scratch/user/.claude/handoffs" \
+	"$(unset HANDOFF_DIR CLAUDE_CONFIG_DIR; HOME=/scratch/user store_root)"
+expect_root "CLAUDE_CONFIG_DIR moves the default store" \
+	"/scratch/config/handoffs" \
+	"$(unset HANDOFF_DIR; CLAUDE_CONFIG_DIR=/scratch/config HOME=/scratch/user store_root)"
+expect_root "HANDOFF_DIR overrides the store" \
+	"/tmp" \
+	"$(HANDOFF_DIR=/tmp CLAUDE_CONFIG_DIR=/scratch/config HOME=/scratch/user store_root)"
+if grep -qF -- "$root_rule" "$skill"; then
+	pass "skill documents the same store rule this test runs"
+else
+	fail "skill no longer contains the store rule this test runs"
 fi
-printf 'all shipped-file checks passed\n'
+
+finish shipped-file
