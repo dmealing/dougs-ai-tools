@@ -15,6 +15,17 @@ check_no_home_path() {
 	fi
 }
 
+# check_claude_code_only <path>...: nothing claims the tools suit other agents.
+check_claude_code_only() {
+	hits=$(grep -rniE --exclude-dir=.git -- 'similar coding agents|other coding agents' "$@" 2>/dev/null)
+	if [ -z "$hits" ]; then
+		pass "the shipped text describes the tools as being for Claude Code"
+	else
+		fail "the shipped text mentions other coding agents:"
+		printf '%s\n' "$hits"
+	fi
+}
+
 # check_portable_shell <file>...: the shell in each file avoids constructs
 # that stock macOS lacks (bash 3.2, BSD userland).
 check_portable_shell() {
@@ -105,10 +116,25 @@ EOF
 }
 
 # The store rule and the project rule, exactly as the handoff skill documents
-# them. Anything that reads the store has to contain the same text.
+# them. Anything that reads the store has to contain the same text, and the
+# tests run these very lines. The project rule is several lines long.
 # The single quotes are deliberate: the literal text is evaluated or searched
 # for. Both variables are read by the scripts that source this file.
 # shellcheck disable=SC2016,SC2034
 store_rule='root="${HANDOFF_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/handoffs}"'
 # shellcheck disable=SC2034
-project_rule="sed -n '1s/^worktree //p'"
+project_rule=$(
+	cat <<'EOF'
+main=$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')
+bare=$(git worktree list --porcelain 2>/dev/null | sed -n '2s/^bare$/yes/p')
+project=$(basename "${main:-$PWD}")
+if [ -n "$bare" ]; then case "$project" in .bare | .git) project=$(basename "$(dirname "$main")") ;; *.git) project=${project%.git} ;; esac; fi
+EOF
+)
+
+# rule_in_file <rule> <file>: every line of the rule is, whole, a line of the file.
+rule_in_file() {
+	printf '%s\n' "$1" | while IFS= read -r rule_line; do
+		grep -qxF -- "$rule_line" "$2" || exit 1
+	done
+}

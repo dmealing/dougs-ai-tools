@@ -4,7 +4,7 @@
 
 A Claude Code skill that resumes work from a handoff without you pasting a path. It finds the handoff for the checkout you are in and **shows which one it chose, why, and what else it could have chosen, before it reads anything**.
 
-It requires the [handoff](../handoff/) skill, which writes the files this one reads. Nothing checks that for you: with pickup installed alone, `/pickup` simply finds nothing to pick up.
+It requires the [handoff](../handoff/) skill, which writes the files this one reads. The plugin declares that dependency, so `claude plugin install pickup@dougs-ai-tools` brings the handoff plugin with it. The install script does not check it: with pickup installed alone that way, `/pickup` simply finds nothing to pick up.
 
 ## The problem
 
@@ -28,15 +28,16 @@ Requirements: Claude Code, the handoff skill, and a POSIX shell with the usual t
 
 ## Install
 
-Pick one. Install the handoff skill the same way.
+Pick one. With the install script, install the handoff skill the same way.
 
 ### As a Claude Code plugin
 
 ```sh
 claude plugin marketplace add dmealing/dougs-ai-tools
-claude plugin install handoff@dougs-ai-tools
 claude plugin install pickup@dougs-ai-tools
 ```
+
+The handoff plugin is installed with it, as a declared dependency. The skill is allowed to run its own read-only listing script without a permission prompt; that is the only command it pre-approves.
 
 Inside a session, the same steps are `/plugin marketplace add dmealing/dougs-ai-tools` and `/plugin install pickup@dougs-ai-tools`.
 
@@ -65,13 +66,14 @@ A refusal changes nothing: no file is copied or removed. Install it one way, not
 
 ### Which files are candidates
 
-The store and the project are found by the handoff skill's own rule, with the same environment variables (`HANDOFF_DIR`, `CLAUDE_CONFIG_DIR`). The script contains that rule's lines unchanged, and a test fails if the two drift apart.
+The store and the project are found by the handoff skill's own rule, with the same environment variables (`HANDOFF_DIR`, `CLAUDE_CONFIG_DIR`). The script contains that rule's lines unchanged, and a test fails if the two drift apart. For a bare clone with its working trees beside it, the project is named by the bare directory's holder (`.bare` or `.git` takes its parent's name, `name.git` becomes `name`), as in the handoff skill.
 
 - **Only live handoffs.** The top level of each project folder is read. `done/` is never read.
 - **The project named inside the file decides.** A handoff is a candidate when its `**Project:**` header equals this project's name, whichever folder it sits in. A file filed under the wrong folder is still found, and the listing says where it sits.
 - **The folder name is used only for a file with no `**Project:**` header**, and then only on an exact match.
 - **No prefix matching.** A project named `widget` never picks up handoffs from `widget-shop`.
 - A file in this project's folder whose header names a different project is not a candidate. It is printed on a `skipped:` line.
+- **Handoffs filed under the old name of a bare-clone layout are still found.** Before the bare-clone rule, such a repository was filed under the bare directory's own name (for example `.bare`), shared by every repository laid out that way. A file whose project (or, without a header, folder) is that old name is a candidate when its recorded `**Repo:**` is a checkout of this repository. When the recorded checkout cannot be checked (it was removed, or the file has no `**Repo:**`), the file is kept and flagged `legacy-project`. A file recorded in a different repository is not offered.
 
 ### How candidates are weighed
 
@@ -91,7 +93,8 @@ Two kinds of match are printed as **weak** evidence and add no points, so neithe
 | Weak | Meaning |
 |---|---|
 | `default-branch` | The handoff and this checkout are both on the same default branch. Many streams are written from a default branch, so it identifies none of them. Default branches are `main`, `master`, `trunk`, `develop`, the branch the `origin` remote calls its default when git knows it, and any name in `PICKUP_DEFAULT_BRANCHES`. |
-| `detached` | Both are on a detached HEAD. The line says whether it is the same commit; it is weak either way. |
+| `detached` | Both are on a detached HEAD. The line says whether it is the same commit; it is weak either way. When the commit differs, the handoff is also flagged `different-commit`. |
+| `commit` | The handoff recorded a `**Commit:**`. The line says how this checkout stands to it: at the same commit, N commits ahead, N commits behind, diverged from it, or the commit is not in this repository. Handoffs from before that header existed print no such line, and that is not a flag. |
 
 **Recency** orders candidates that have the same points, newest first. It never breaks a tie: equal points are reported as `ambiguous`. The date is the handoff's `**Written:**` value. The file's modification time is used only when that header is missing or unreadable, and the listing labels it as file time, so a copied or touched file does not look new.
 
@@ -117,8 +120,10 @@ A flag never hides a handoff. It is printed with the candidate, and a flag on th
 | `branch-missing` | The recorded branch exists neither locally nor as a remote-tracking branch, in this repository or in the recorded one. A default branch that was renamed away is flagged the same way. |
 | `different-checkout` | The recorded repository path exists and is not this checkout. The stream may belong to another worktree or clone. |
 | `different-branch` | The handoff was written on a named branch that is not the one checked out here. |
+| `different-commit` | The handoff was written on a detached HEAD at one commit, and this checkout is detached at another. A detached HEAD names no stream, so a matching path alone may be a checkout folder that was reused for other work. |
 | `pr-merged` | The pull request for the recorded branch is merged. The work may be finished; the handoff may also still hold follow-up work. |
 | `pr-closed` | The pull request for the recorded branch was closed without merging. |
+| `legacy-project` | The file is filed under the old project name of a bare-clone layout and its recorded checkout cannot be checked, so it may belong to another repository. |
 | `header-incomplete` | The file lacks a usable `**Repo:**`, `**Branch:**` or `**Written:**` value. |
 
 The pull-request flags need `gh`, installed and working, in a repository hosted on GitHub. One call is made, for the 200 most recent pull requests of the repository you are in. When it cannot be made, the listing says `pr-check: unavailable` and each candidate shows `pr: unknown`, which is not the same as having no pull request. Three cases are never a flag:
@@ -191,7 +196,7 @@ The agent turns that into:
 
 | Line | Value |
 |---|---|
-| `pickup: format 1` | The format's version. It changes when a line's meaning changes. |
+| `pickup: format 1` | The format's version. It changes when an existing line's meaning changes or a line goes away. Adding a new `weak:` or `flag:` name, as `commit`, `different-commit` and `legacy-project` were added, does not change it. |
 | `store:` | The store that was read, with `(does not exist)` when it is missing. |
 | `project:` | The project name. |
 | `checkout:` | The top of the current checkout, or the current directory outside git. |

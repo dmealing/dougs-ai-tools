@@ -1,6 +1,6 @@
 # dougs-ai-tools
 
-Small, independent tools for Claude Code and similar coding agents.
+Small, independent tools for Claude Code.
 
 Each tool lives in its own folder with its own README, install steps and tests. Install only the ones you want. A tool that needs another says so in the table.
 
@@ -19,7 +19,7 @@ The repository is a Claude Code plugin marketplace:
 ```sh
 claude plugin marketplace add dmealing/dougs-ai-tools
 claude plugin install handoff@dougs-ai-tools
-claude plugin install pickup@dougs-ai-tools   # optional, experimental; needs handoff
+claude plugin install pickup@dougs-ai-tools   # optional, experimental; declares handoff as a dependency
 claude plugin install context-nudge@dougs-ai-tools   # optional; see its README for the status-line step
 ```
 
@@ -37,4 +37,4 @@ Each tool also carries its own, for example `sh handoff/tests/run.sh`. Code that
 
 ## Licence
 
-Apache-2.0. See [LICENSE](LICENSE).
+Apache-2.0. See [LICENSE](LICENSE). The handoff skill drew on an MIT-licensed project; its copyright line and permission notice are in [NOTICE](NOTICE).
