@@ -15,14 +15,14 @@ Without that, the new session repeats the old one's failures. A handoff is the f
 
 ## What the skill does
 
-You type `/handoff`. The agent then:
+You type `/handoff`, optionally followed by what the next session is for (`/handoff finish the migration tests`). The agent then:
 
 1. **Checks three gates**, and writes nothing unless all pass:
    - you asked for it (a full context window, or a finished task, is never a reason on its own);
    - nothing is running that would die with the session and cannot be re-attached;
    - it is the session's last act.
 2. **Verifies the state** with `git` (and `gh`, when installed) instead of writing from memory.
-3. **Writes one file, fresh.** If a handoff for this stream of work already exists, it is re-derived line by line and rewritten, never edited, so finished work drops out and dead ends survive.
+3. **Writes one file, fresh.** If a handoff for this stream of work already exists, it is copied to `done/` first, then re-derived line by line and rewritten, never edited, so finished work drops out and dead ends survive. A purpose you gave is recorded on a `**Next session:**` line and decides what the file emphasises; it never removes a dead end.
 4. **Prints the file's path and stops.**
 
 When a stream of work is finished, the agent moves its handoff into a `done/` folder instead of writing another.
@@ -51,7 +51,7 @@ git clone https://github.com/dmealing/dougs-ai-tools.git
 sh dougs-ai-tools/handoff/install.sh
 ```
 
-This copies the skill to `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/handoff/SKILL.md`, and the command is `/handoff`. Run the script from the cloned repository: it uses code in the repository's `lib/` folder.
+This copies the skill (`SKILL.md`, and `reference.md` with the worked example and common mistakes, which the skill reads only when it needs them) to `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/handoff/`, and the command is `/handoff`. The session hint described below is part of the plugin only; the install script does not set it up. Run the script from the cloned repository: it uses code in the repository's `lib/` folder.
 
 | Command | Effect |
 |---|---|
@@ -75,7 +75,7 @@ Install it one way, not both, or the skill is listed twice.
 
 Handoffs live outside the repository so they cannot be committed by accident. If `CLAUDE_CONFIG_DIR` is set, the `handoffs` folder is created there instead of in `~/.claude`.
 
-Finished handoffs accumulate in `done/` and are never deleted automatically. Delete that folder's contents yourself when you no longer want them.
+Finished handoffs accumulate in `done/`, together with the earlier version of any stream that was rewritten, and are never deleted automatically. Delete that folder's contents yourself when you no longer want them.
 
 ### Storing them somewhere else
 
@@ -126,6 +126,18 @@ Re-verify anything above that you are about to act on, and report what has drift
 
 The header fields (`**Project:**`, `**Repo:**`, `**Branch:**`, `**Written:**` and `**Commit:**`) have a fixed format so that tools can read them. `**Commit:**` is the short hash of the commit the checkout was at, so a later session can see how far the checkout has moved; it is left out of a handoff written outside a git repository, and older handoffs do not have it. A handoff leaves out secrets (keys, tokens, passwords, personal data) and says where one lives instead. The full template and a longer example are in [the skill itself](skills/handoff/SKILL.md).
 
+## The session-start hint
+
+When installed as a plugin, a hook runs when a session starts or is cleared. If the project has live handoffs it shows you one short line, for example:
+
+```
+2 live handoffs for parcel-tracker: fix-webhook-retry-backoff, search-index. Resume with /pickup if installed, or ask Claude to read <store>/parcel-tracker/<first>.md. Turn this message off with HANDOFF_HINT=off.
+```
+
+It lists the folder and reads no file, so it never shows what is inside a handoff, names at most five streams, and prints nothing when there are none, when the store does not exist, or when anything goes wrong. The line goes to you only; the model does not see it.
+
+It is on by default. Set `HANDOFF_HINT=off` (`0`, `no` and `false` also work) in your environment, or in the `env` block of `settings.json`, to turn it off. It uses the same store and project rules as the skill, so `HANDOFF_DIR` and `CLAUDE_CONFIG_DIR` apply.
+
 ## When not to use this
 
 A handoff has a cost: you write it, and the next session reads it. Often something lighter fits better.
@@ -135,6 +147,20 @@ A handoff has a cost: you write it, and the next session reads it. Often somethi
 - **Planned multi-phase work** is better served by a plan file kept in the repository: the plan is known in advance, so it does not need to be rediscovered.
 
 A handoff file earns its place for **unplanned work that spans sessions**, where what was tried and failed matters and nothing else records it.
+
+## How this compares
+
+The [root README](../README.md#how-this-compares) lists the alternatives with links, including the short handoff skills ([mattpocock/skills](https://github.com/mattpocock/skills/blob/HEAD/skills/productivity/handoff/SKILL.md), [ykdojo](https://github.com/ykdojo/claude-code-tips)), the ones that write into the repository, and the ones that save automatically. In short:
+
+- **Smaller skills are easier to read and to trust.** This skill is several hundred lines of rules. If you only need a note for the next session, a short skill or a single prompt is enough.
+- **Claude Code's own `/compact`, `--continue` and `--resume`** cover a single sitting and simple resuming, and `claude --resume` also recovers a crashed session.
+- **What this skill does differently:** it refuses to write while work that would die with the session is still running; it keeps several streams per project outside the repository, live ones apart from `done/`; it rewrites a handoff from scratch (keeping the previous version) so finished work drops out and dead ends survive; and it writes only when asked.
+
+## What these tools deliberately do not do
+
+- **Nothing is saved automatically.** If a session crashes or is compacted by force, no handoff is written. Claude Code keeps every transcript, so `claude --resume` recovers a crashed session. Tools that snapshot on exit or before compaction exist (see the root README) and are the better choice if that is what you want.
+- **Handoffs are local to one machine and written for Claude Code.** They are not meant to reach a colleague, another computer or another agent.
+- **One store per project is shared by all working copies, on purpose.** Every worktree and checkout of a repository reads and writes the same folder. That is what lets a new checkout continue work begun in another, and it is why [pickup](../pickup/) checks the recorded repository and branch before trusting a file.
 
 ## Resuming from a handoff
 

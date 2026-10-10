@@ -1,0 +1,16 @@
+{
+  "description": "Tell the user, once at the start of a session, that live handoffs exist for this project.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/handoff-hint.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

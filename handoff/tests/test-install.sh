@@ -17,7 +17,7 @@ repo=$(dirname -- "$root")
 	installer="$root/install.sh"
 	skill_name=handoff
 	skill_src="$root/skills/handoff"
-	skill_files='SKILL.md'
+	skill_files='SKILL.md reference.md'
 }
 
 # shellcheck source=/dev/null
