@@ -156,6 +156,8 @@ input=$(sh ~/.claude/context-nudge/bin/context-nudge-cache.sh)   # was: input=$(
 
 Your status line looks exactly as it did.
 
+For a supervisor running several workers, [FLEET.md](FLEET.md) has a ready-to-copy `env` block that turns the token triggers off, so the first notice comes at 40 percent on any window size, and a worked example of acting on the notices.
+
 ## Settings
 
 Every setting is an environment variable. Set them where Claude Code will pass them on: in your shell profile, or under `"env"` in `settings.json`.
@@ -244,6 +246,18 @@ Once a day the hook deletes `.usage` and `.band` files that have not been writte
 - **Subagents are not measured.** The reading is the main conversation's.
 - **Claude Code only.** Other agents have different hooks and are not supported.
 - **Uninstalling the plugin leaves the `context-nudge` folder** with its script copies and per-session files. Delete it by hand.
+
+## How this compares
+
+The [root README](../README.md#how-this-compares) covers the wider field. For monitoring alone:
+
+- **[ccstatusline](https://github.com/sirmalloc/ccstatusline) and [claude-hud](https://github.com/jarrodwatts/claude-hud)** draw context usage in a status line you can see at all times. They are the better choice if you want a gauge, and they need no `jq`. They do not put anything in the conversation, so the model never learns the window is filling.
+- **[f3kpclon/claude-code-handoff](https://github.com/f3kpclon/claude-code-handoff)** and **[Sting25/claude-code-handoff](https://github.com/Sting25/claude-code-handoff)** warn as context fills and also take the snapshot for you (an operating-system dialog in the first; a git-state snapshot on every clean exit in the second). They are the better choice if you want the saving done without being asked.
+- **Claude Code's own auto-compaction** acts at the end without warning. See the [context window docs](https://code.claude.com/docs/en/context-window).
+
+What is different here: the notice goes to you and to the model, speaks once on entry to each band, and repeats on every prompt only within 10 percent of compaction. It tells the model the window is filling and that a handoff is written only when you ask. It never asks the model to write one.
+
+It does not draw anything, and it saves nothing. It also needs `jq` and a line in your status-line script.
 
 ## Tests
 

@@ -130,6 +130,30 @@ check "the rule on when to write sits above the first gate" rule_above_gate
 rule_stated_once() { [ "$(grep -c 'only when the user asks' "$skill")" -eq 1 ]; }
 check "the rule on when to write is stated once" rule_stated_once
 
+# --- the skill stays short; the long parts load on demand ---------------------------
+reference="$root/skills/handoff/reference.md"
+skill_lines=$(wc -l <"$skill" | tr -d ' ')
+check "the skill stays under 240 lines ($skill_lines now)" [ "$skill_lines" -le 240 ]
+check "the on-demand reference ships" [ -f "$reference" ]
+check "the skill points at the on-demand reference" grep -qF 'reference.md' "$skill"
+check "the reference holds the worked example" grep -q '^# Worked example' "$reference"
+check "the reference holds the mistakes list" grep -q '^# Common mistakes' "$reference"
+# shellcheck disable=SC2016
+check "the skill no longer carries the worked example" sh -c '! grep -q "^## Worked example" "$1"' _ "$skill"
+gates_first() {
+	gate_line=$(grep -n '^# PART 1' "$skill" | cut -d: -f1)
+	example_ref=$(grep -n 'reference.md' "$skill" | head -n 1 | cut -d: -f1)
+	[ -n "$gate_line" ] && [ -n "$example_ref" ] && [ "$gate_line" -gt 0 ] && grep -q '^## Gate 3' "$skill"
+}
+check "all three gates stay in the skill" gates_first
+
+# --- what the next session is for, and keeping the previous version -------------------
+check "the skill accepts words after /handoff as the next session's purpose" grep -qF '**Next session:**' "$skill"
+check "the skill keeps dead ends whatever the purpose" grep -qF 'do not** drop a dead end' "$skill"
+# shellcheck disable=SC2016
+check "the skill copies the previous version to done/ before a rewrite" \
+	grep -qF 'cp -p "$dir/<stream>.md" "$dir/done/<stream>-$(date +%Y%m%d-%H%M%S).md"' "$skill"
+
 # --- credit for the work this one drew on ---------------------------------------
 upstream='ostikwhy-blip/claude-code-handoff-skill'
 check "the root NOTICE carries the upstream copyright line" grep -qxF 'Copyright (c) 2026 ostikwhy-blip' "$repo/NOTICE"

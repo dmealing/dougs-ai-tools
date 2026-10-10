@@ -23,7 +23,7 @@ fi
 {
 	skill_name=handoff
 	skill_src="$here/skills/handoff"
-	skill_files='SKILL.md'
+	skill_files='SKILL.md reference.md'
 	skill_hint='Start a new Claude Code session and run /handoff when you want to hand work off.'
 }
 

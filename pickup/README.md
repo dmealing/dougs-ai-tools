@@ -244,6 +244,16 @@ sh ~/.claude/skills/pickup/list-handoffs.sh
 - **Two repositories whose folders share a name share a project**, because that is the handoff skill's rule. Their handoffs appear together; the recorded repository path tells them apart.
 - **macOS is supported but tested by construction, not on a Mac in this repository's own test run**: the script is POSIX sh, the tests run it under every POSIX shell they find, and a check rejects the GNU-only constructs that stock macOS lacks.
 
+## How this compares
+
+Other resume paths exist, and some are better for some jobs. The [root README](../README.md#how-this-compares) lists the alternatives; these are the ones that matter here.
+
+- **`claude --continue` and `claude --resume`** ([documented here](https://code.claude.com/docs/en/sessions)) reopen the whole earlier conversation. They are the better choice for simple resuming, and for a session that crashed, because Claude Code saves the transcript as you work. pickup reads a handoff instead, so it helps when you want a fresh context, or when you keep several streams in one project.
+- **Resume commands in other handoff tools**, such as [HumanLayer's `resume_handoff`](https://github.com/humanlayer/humanlayer/blob/HEAD/.claude/commands/resume_handoff.md) or the `/pickup` in [adrian-zielinski/session-handoff](https://github.com/adrian-zielinski/session-handoff), read a path, a ticket or an index. The agent decides which file to read.
+- **What is different here:** the choice is made by a script that prints its reasons, flags a handoff that is stale, whose repository or branch is missing, that was written in another checkout, or whose pull request has merged, and asks you when the evidence does not settle it.
+
+The cost is a second skill, and a script to maintain, for a step that pasting a path also does.
+
 ## Tests
 
 ```sh
