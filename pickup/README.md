@@ -262,6 +262,20 @@ sh pickup/tests/run.sh
 
 The path above is from the repository root; the script itself runs from anywhere. It builds throwaway stores and git repositories to test `list-handoffs.sh`, tests `install.sh` against a throwaway directory, checks the shipped files for absolute home paths and for shell that stock macOS lacks, and runs `shellcheck` when it is installed. Nothing reads the real store or the network. `sh tests/run.sh` runs every tool's tests.
 
+## Trigger evaluation
+
+`pickup/evals/` holds a suite for `claude plugin eval` that checks the skill runs only when asked. Five cases should trigger it: `/pickup`, `/pickup` with a stream name, "pick up the handoff", "resume from the handoff", and "carry on from the handoff file". Four should not: a bare "continue", "resume" and "keep going", and a request to write a handoff.
+
+pickup depends on the handoff plugin, so run the suite from the repository root, where both plugins can be loaded:
+
+```sh
+claude plugin eval . --eval-dir pickup/evals --ablation none --no-publish
+```
+
+**Running it uses model quota.** One run is 9 agent sessions (9 cases, 1 run each, no baseline arm), plus 3 short judge calls for each of the two slash-command cases. It is not part of `sh pickup/tests/run.sh` or `sh tests/run.sh`, and nothing in the repository runs it for you. Needs Claude Code 2.1.269 or later.
+
+The plain-words cases check that the Skill tool was called. A slash command expands inline in a headless run and never calls the Skill tool, so the two command cases are graded by a judge on the reply instead.
+
 ## Licence
 
 Apache-2.0. See [LICENSE](../LICENSE).
