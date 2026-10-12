@@ -182,6 +182,19 @@ sh handoff/tests/run.sh
 
 The path above is from the repository root; the script itself runs from anywhere. It tests `install.sh` against a throwaway directory, checks the shipped files for absolute home paths and for shell that stock macOS lacks, and runs `shellcheck` when it is installed.
 
+## Trigger evaluation
+
+`handoff/evals/` holds a suite for `claude plugin eval` that checks the skill runs only when asked. Four cases should trigger it: `/handoff`, `/handoff` with words, "hand this off", and "write a prompt to continue in a fresh session". Five should not: a context-usage notice, a long session, "wrap up", "summarize what we did", and a merged pull request.
+
+```sh
+cd handoff
+claude plugin eval . --ablation none --no-publish
+```
+
+**Running it uses model quota.** One run is 16 agent sessions (7 cases at 2 runs, 2 command cases at 1, no baseline arm), plus 3 short judge calls for each of the two slash-command cases. It is not part of `sh handoff/tests/run.sh` or `sh tests/run.sh`, and nothing in the repository runs it for you. Needs Claude Code 2.1.269 or later.
+
+The plain-words cases check that the Skill tool was called. A slash command expands inline in a headless run and never calls the Skill tool, so the two command cases are graded by a judge on the reply instead.
+
 ## Related
 
 [pickup](../pickup/) (experimental) resumes from the files this skill writes, without pasting a path. This skill does not need it.
