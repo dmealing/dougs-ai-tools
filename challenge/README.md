@@ -9,7 +9,7 @@ A Claude Code skill for when you doubt a conclusion. It writes one neutral brief
 **Every run starts two headless `claude -p` sessions and then a differential step of two calls on a third model.** There is no free run.
 
 - On a **subscription login** that uses plan quota. With an **API key** it is metered money.
-- The default pair is **Opus 5.5 and Opus 5**. Fable 5.1 is opt-in with `--fable`, because it costs **2.5 times as much per token as Opus 5.5** (list prices of $10 and $50 per million tokens, against $4 and $20), and because **under `claude -p` Claude Code does not ask before a Fable request bills to usage credits**. A subscriber can be charged for Fable without a prompt. Check how your plan bills Fable before you pass `--fable`.
+- The default pair is **Opus 5.5 and Opus 5**. Fable 5.1 is opt-in with `--fable`, because it costs **2.5 times as much per token as Opus 5.5** (the list prices are in [reference.md](skills/challenge/reference.md#cost)), and because **under `claude -p` Claude Code does not ask before a Fable request bills to usage credits**. A subscriber can be charged for Fable without a prompt. Check how your plan bills Fable before you pass `--fable`.
 - Each arm has a budget cap (`--max-budget-usd`), $8 by default and $16 when a Fable model is in the pair. The CLI checks the cap against its own client-side estimate, and spend can pass it.
 - In the author's own use, a run of two Opus models cost a little under $3 on average at list prices, and a pair with Fable about twice that. [reference.md](skills/challenge/reference.md) has the dated figures. They are one person's questions, not a benchmark.
 
@@ -75,7 +75,7 @@ This copies the skill and its scripts to `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sk
 
 Records go to `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/challenge-log/`, or to `$CHALLENGE_HOME` when that is set. Each holds the brief, both answers, the differential and the pinned commit.
 
-## Choosing the models
+## Choosing the models and settings
 
 | Variable | Default | What it does |
 |---|---|---|
@@ -83,6 +83,9 @@ Records go to `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/challenge-log/`, or to `$CHAL
 | `CHALLENGE_SYNTH_MODEL` | `claude-sonnet-5-5` | The differential model. It must be outside the pair; an alias that could resolve to an arm's model is refused. |
 | `CHALLENGE_ARM_BUDGET_USD` | 8 (16 with Fable) | The per-arm cap. |
 | `CHALLENGE_ARM_TIMEOUT` | 900 | Seconds before an arm is killed. |
+| `CHALLENGE_SYNTH_BUDGET_USD` | 4 | The cap for each differential call. |
+| `CHALLENGE_SYNTH_TIMEOUT` | 300 | Seconds before a differential call is killed. |
+| `CHALLENGE_SKIP_SCOPE_CHECK` | unset | Set to `1` to allow a brief that states no verification scope. Use it only when the brief truly has nothing unverified. |
 
 `new --twin` puts the same model in both arms. Its split rate is the noise floor that makes every other rate mean something. `new --fable` allows a Fable model in the pair. A Fable model without `--fable` is refused, however it was configured.
 
