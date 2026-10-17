@@ -1,0 +1,13 @@
+{
+  "name": "challenge",
+  "displayName": "Challenge",
+  "version": "0.1.0",
+  "description": "Experimental. A cross-model second opinion: two independent headless Claude runs on one neutral brief, then a blind differential of where they converged and split. Every run starts two sessions plus a differential step, which uses plan quota or metered money.",
+  "author": {
+    "name": "dmealing"
+  },
+  "homepage": "https://github.com/dmealing/dougs-ai-tools/tree/main/challenge",
+  "repository": "https://github.com/dmealing/dougs-ai-tools",
+  "license": "Apache-2.0",
+  "keywords": ["second-opinion", "cross-model", "review", "sycophancy", "council"]
+}

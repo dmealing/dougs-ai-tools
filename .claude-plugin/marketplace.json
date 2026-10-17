@@ -19,6 +19,11 @@
       "name": "context-nudge",
       "source": "./context-nudge",
       "description": "Tell the user and the model how full the context window is: silent until it is 40 percent full or holds 100K tokens, one notice on entry to each of three bands, and a notice on every prompt once compaction is close. Needs jq and a one-line status-line addition."
+    },
+    {
+      "name": "challenge",
+      "source": "./challenge",
+      "description": "Experimental. A cross-model second opinion for a conclusion you doubt: two independent headless Claude runs on one neutral brief, then a blind differential of where they converged and split. Every run starts two sessions plus a differential step, which uses plan quota or metered money; Fable is opt-in."
     }
   ]
 }

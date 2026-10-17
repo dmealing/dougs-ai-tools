@@ -11,10 +11,13 @@ Each tool lives in its own folder with its own README, install steps and tests. 
 | [handoff](handoff/) | A skill that writes one Markdown file at the end of a session so a fresh session can continue the work: dead ends, misleading signals, state in flight, remaining work and the reasons behind decisions. | Available |
 | [pickup](pickup/) | A skill that resumes from a handoff without you pasting its path. It finds the handoff for the current checkout and shows which one it chose, why, and what else it could have chosen, before loading it. Requires handoff. | Experimental |
 | [context-nudge](context-nudge/) | A prompt hook that tells you and the model how full the context window is: silent until it is 40 percent full or holds 100K tokens, one notice on entry to each of three bands, and a notice on every prompt once compaction is close, so you can finish, compact or hand off in time. Needs `jq` and a one-line status-line addition. | Available |
+| [challenge](challenge/) | A skill for when you doubt a conclusion: one neutral brief goes to two independent headless Claude runs, then a model that cannot see which wrote which writes a differential of where they converged and split. Every run starts two sessions plus a differential step, so it uses plan quota or metered money. | Experimental |
 
 ## How this compares
 
 These are not the only answers to the same problem, and for some situations they are not the best ones. What follows says what each alternative does, in a line, where it is the better choice, and where these tools differ. The descriptions come from each project's own README or source, read in October 2026; they change, so follow the link before relying on one.
+
+The comparison below is for the handoff, pickup and context-nudge tools. The challenge tool has its own, in [its README](challenge/README.md#how-it-compares): the built-in advisor, PAL MCP (which also ships an unrelated `challenge` tool), codex-plugin-cc and others.
 
 ### Built into Claude Code
 
@@ -78,6 +81,7 @@ claude plugin marketplace add dmealing/dougs-ai-tools
 claude plugin install handoff@dougs-ai-tools
 claude plugin install pickup@dougs-ai-tools   # optional, experimental; declares handoff as a dependency
 claude plugin install context-nudge@dougs-ai-tools   # optional; see its README for the status-line step
+claude plugin install challenge@dougs-ai-tools   # optional, experimental; every run spends quota or money, see its README
 ```
 
 Each tool's README also describes an install that does not use the plugin system.
