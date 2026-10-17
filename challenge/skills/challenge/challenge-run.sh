@@ -45,10 +45,6 @@ arm_timeout=${CHALLENGE_ARM_TIMEOUT:-900}
 synth_timeout=${CHALLENGE_SYNTH_TIMEOUT:-300}
 synth_model=${CHALLENGE_SYNTH_MODEL:-$default_synth_model}
 synth_budget=${CHALLENGE_SYNTH_BUDGET_USD:-4}
-# The tool set is passed with --tools, which controls what EXISTS. Agent is left
-# out on purpose: an arm that fans out to subagents differs from one that does
-# not for a reason that is not the model.
-tools=${CHALLENGE_ARM_TOOLS:-Read Grep Glob Bash}
 
 usage() {
 	cat <<'EOF'
@@ -99,10 +95,19 @@ d="$home_dir/$slug"
 d=$(CDPATH='' cd -- "$d" && pwd -P)
 
 work=''
-# Run by the trap below.
+pids=''
+# Run by the traps below.
 # shellcheck disable=SC2329
 cleanup() { [ -z "$work" ] || rm -rf "$work"; }
-trap cleanup EXIT INT TERM
+# A signal stops the run and the paid calls it started, not just the wait.
+# shellcheck disable=SC2329,SC2086
+on_signal() {
+	[ -z "$pids" ] || kill $pids 2>/dev/null || true
+	exit "$1"
+}
+trap cleanup EXIT
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
 
 # --- the brief --------------------------------------------------------------
 
@@ -216,6 +221,7 @@ run_with_timeout() {
 		kill "$rwt_pid" 2>/dev/null || true
 	) &
 	rwt_watch=$!
+	trap 'kill "$rwt_pid" "$rwt_watch" 2>/dev/null; exit 143' TERM
 	rwt_rc=0
 	wait "$rwt_pid" || rwt_rc=$?
 	kill "$rwt_watch" 2>/dev/null || true
@@ -311,11 +317,12 @@ run_arm() {
 	arm_model=$1
 	arm_slot=$2
 	arm_rc=0
-	# $tools is deliberately split into words.
-	# shellcheck disable=SC2086
+	# --tools controls what EXISTS. Agent is left out on purpose: an arm that fans
+	# out to subagents differs from one that does not for a reason that is not
+	# the model.
 	run_with_timeout "$arm_timeout" "$d/brief.md" "$d/.$arm_slot.json" "$d/.$arm_slot.err" \
 		claude -p --model "$arm_model" --safe-mode --output-format json \
-		--tools $tools --add-dir "$repo" --max-budget-usd "$budget" || arm_rc=$?
+		--tools Read Grep Glob Bash --add-dir "$repo" --max-budget-usd "$budget" || arm_rc=$?
 	echo "$arm_rc" >"$d/.$arm_slot.rc"
 }
 
@@ -329,10 +336,13 @@ dispatch_arms() {
 	cd "$repo"
 	run_arm "$a_model" A &
 	pid_a=$!
+	pids=$pid_a
 	run_arm "$b_model" B &
 	pid_b=$!
+	pids="$pid_a $pid_b"
 	wait "$pid_a" || true
 	wait "$pid_b" || true
+	pids=''
 	post_head=$(git -C "$repo" rev-parse HEAD 2>/dev/null || echo none)
 	git -C "$repo" status --porcelain 2>/dev/null | sort >"$d/.post-status" || true
 	if [ "$pre_head" != "$post_head" ] || ! cmp -s "$d/.pre-status" "$d/.post-status"; then
@@ -429,13 +439,12 @@ synth_pass() {
 	build_prompt "$2" "$3" >"$work/prompt-$pass.txt"
 	pass_rc=0
 	# The differential runs in an empty folder with no tools, so it cannot read
-	# the repository or anything else.
-	(
-		cd "$work"
-		run_with_timeout "$synth_timeout" "$work/prompt-$pass.txt" "$d/.D$pass.json" "$d/.D$pass.err" \
-			claude -p --model "$synth_model" --safe-mode --output-format json \
-			--tools "" --max-budget-usd "$synth_budget"
-	) || pass_rc=$?
+	# the repository or anything else. Each pass runs in the background, so the
+	# cd stays inside it.
+	cd "$work"
+	run_with_timeout "$synth_timeout" "$work/prompt-$pass.txt" "$d/.D$pass.json" "$d/.D$pass.err" \
+		claude -p --model "$synth_model" --safe-mode --output-format json \
+		--tools "" --max-budget-usd "$synth_budget" || pass_rc=$?
 	echo "$pass_rc" >"$d/.D$pass.rc"
 }
 
@@ -446,10 +455,13 @@ differential() {
 	echo "writing the differential with $synth_model, answers read in both orders" >&2
 	synth_pass 1 "$d/A.md" "$d/B.md" &
 	pid_1=$!
+	pids=$pid_1
 	synth_pass 2 "$d/B.md" "$d/A.md" &
 	pid_2=$!
+	pids="$pid_1 $pid_2"
 	wait "$pid_1" || true
 	wait "$pid_2" || true
+	pids=''
 
 	good=''
 	for pass in 1 2; do
@@ -549,10 +561,10 @@ extract_arms
 # shellcheck disable=SC2086
 set -- $ok_slots
 n_ok=$#
-survivor=$1
 if [ "$n_ok" -eq 0 ]; then
 	die "both arms failed:$failed"
 fi
+survivor=$1
 
 : >"$d/.arms"
 for slot in $ok_slots; do

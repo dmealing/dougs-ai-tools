@@ -77,9 +77,9 @@ check "two arms and two differential passes ran" holds '[ "$(calls_of arm)" -eq 
 check "the run reports the agreement" out_has "agreement: yes"
 check "the run states the cost before it dispatches" err_has "plan quota"
 
-arm_args=$(grep -l '^--safe-mode$' "$STUB_DIR"/args.* | head -n 1)
-check "the arms run in the clean room" [ -n "$arm_args" ]
 arm_calls=$(grep -l '^--add-dir$' "$STUB_DIR"/args.*)
+arm_args=$(printf '%s\n' $arm_calls | head -n 1)
+check "the arms run in the clean room" holds '[ -n "$arm_calls" ] && [ -z "$(grep -L '\''^--safe-mode$'\'' $arm_calls)" ]'
 n_identical=0
 for call_args in $arm_calls; do
 	call_id=${call_args##*args.}
@@ -89,7 +89,12 @@ check "both arms received the brief, byte for byte, on standard input" [ "$n_ide
 check "the brief is not on the command line" [ -z "$(grep -l 'legacy cache' $arm_calls 2>/dev/null)" ]
 check "the default pair is Opus 5.5 with Opus 5" holds '[ "$(grep -c '\''^arm|claude-opus-5-5|'\'' "$STUB_DIR/calls.log")" -eq 1 ] && [ "$(grep -c '\''^arm|claude-opus-5|'\'' "$STUB_DIR/calls.log")" -eq 1 ]'
 check "the default cap is 8 dollars" grep -qx '8' "$arm_args"
-check "the arms have Read, Grep, Glob and Bash and no Write or Edit" grep -q '^arm|.*|1|Read$' "$STUB_DIR/calls.log"
+n_tool_sets=0
+for call_args in $arm_calls; do
+	call_tools=$(awk 'on && /^--/ { exit } on { printf "%s ", $0 } $0 == "--tools" { on = 1 }' "$call_args")
+	if [ "$call_tools" = "Read Grep Glob Bash " ]; then n_tool_sets=$((n_tool_sets + 1)); fi
+done
+check "both arms have exactly Read, Grep, Glob and Bash, and no Write, Edit or Agent" [ "$n_tool_sets" -eq 2 ]
 check "an arm runs in the repository it was given" grep -qx "$target" "${arm_args%args.*}cwd.${arm_args##*args.}"
 check "no arm names the repository path on its command line" [ "$(grep -c "$target" "$arm_args")" -eq 1 ]
 
@@ -104,7 +109,7 @@ done
 check "the two differential passes read the answers in opposite orders" holds '[ "$first_marks" = " MARKX MARKY" ] || [ "$first_marks" = " MARKY MARKX" ]'
 synth_dir=$(head -n 1 "$(grep -l '<<<ANSWER 1>>>' "$STUB_DIR"/stdin.* | head -n 1 | sed 's/stdin\./cwd./')")
 check "the differential does not run in the repository" [ "$synth_dir" != "$target" ]
-check "the arms' cost and the differential's are both recorded" grep -q '^cost_usd=3.0000' "$rec/.arms" && grep -q '^synth_cost_usd=3.0000' "$rec/.arms"
+check "the arms' cost and the differential's are both recorded" holds 'grep -q '\''^cost_usd=3.0000$'\'' "$rec/.arms" && grep -q '\''^synth_cost_usd=3.0000$'\'' "$rec/.arms"'
 check "the record does not say which arm was which in anything the run printed" [ -z "$(grep -l 'opus-5' "$work/out")" ]
 check "the pairing is printed" err_has "pairing: claude-opus-5+claude-opus-5-5"
 
@@ -184,6 +189,7 @@ reset_stub
 ready_record mismatch
 run_with 'STUB_MODE=mismatch' mismatch
 check "a different model answering is refused" [ "$status" -eq 2 ]
+check "the refusal reports both arms' failures" err_has "both arms failed"
 check "the refusal says the arms were billed" err_has "were billed"
 check "the refusal says --reextract re-reads for free" err_has "--reextract"
 check "no answer is written when the model is wrong" holds '[ ! -e "$rec/A.md" ] && [ ! -e "$rec/B.md" ]'
@@ -207,13 +213,13 @@ check "the run says this is not a challenge" err_has "NOT a challenge"
 reset_stub
 status=0
 CHALLENGE_MODEL_B=claude-fable-5-1 sh "$log_sh" new fable-no "$target" >/dev/null 2>"$work/err" || status=$?
-check "a Fable model without --fable is refused" [ "$status" -eq 2 ] && err_has "--fable"
+check "a Fable model without --fable is refused" holds '[ "$status" -eq 2 ] && err_has "--fable"'
 ready_record fable-yes --fable
 check "--fable puts Fable 5.1 in the pair" grep -q 'claude-fable-5-1' "$rec/.map"
 run_runner fable-yes
 check "a Fable pair runs" [ "$status" -eq 0 ]
 check "a Fable pair warns about usage credits" err_has "usage credits"
-check "a Fable pair has the higher default cap" grep -qx '16' "$(grep -l '^--safe-mode$' "$STUB_DIR"/args.* | head -n 1)"
+check "a Fable pair has the higher default cap" grep -qx '16' "$(grep -l '^--add-dir$' "$STUB_DIR"/args.* | head -n 1)"
 
 # --- the repository is watched while the arms run ---------------------------------------------
 reset_stub
@@ -234,6 +240,28 @@ ready_record slow
 run_with 'CHALLENGE_ARM_TIMEOUT=1 STUB_SLEEP=6' slow --arms-only
 check "an arm past the limit is killed and the run fails" [ "$status" -eq 2 ]
 check "the failure says the arm timed out" err_has "timed out after 1s"
+
+# --- a signal stops the run and the calls it started ------------------------------------------
+reset_stub
+ready_record stopped
+STUB_SLEEP=30 sh "$run_sh" stopped >"$work/out" 2>"$work/err" &
+runner_pid=$!
+waited=0
+while [ "$(calls_of arm)" -lt 2 ] && [ "$waited" -lt 20 ]; do
+	sleep 1
+	waited=$((waited + 1))
+done
+kill -TERM "$runner_pid"
+status=0
+wait "$runner_pid" || status=$?
+sleep 1
+n_alive=0
+for call_args in "$STUB_DIR"/args.*; do
+	if kill -0 "${call_args##*args.}" 2>/dev/null; then n_alive=$((n_alive + 1)); fi
+done
+check "a stopped run exits 143" [ "$status" -eq 143 ]
+check "a stopped run stops both arms" [ "$n_alive" -eq 0 ]
+check "a stopped run starts no differential" [ "$(calls_of synth)" -eq 0 ]
 
 # --- where the records go -----------------------------------------------------------------------
 reset_stub

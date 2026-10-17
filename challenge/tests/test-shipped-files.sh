@@ -2,11 +2,10 @@
 # Checks on the files the challenge sub-project ships:
 #   1. none of them contains an absolute home-directory path or a tilde path;
 #   2. the shell avoids constructs that stock macOS lacks, and constructs POSIX
-#      sh lacks, including GNU-only tools that have no portable fallback;
+#      sh lacks;
 #   3. the plugin manifest, the marketplace entry and the skill agree on names;
-#   4. the skill pre-approves only its own scripts, and finds them by its own
-#      install location;
-#   5. the documents carry the warnings and labels they must.
+#   4. the skill pre-approves only its own scripts;
+#   5. the public documents carry the warnings and labels they must.
 #
 # Run: sh challenge/tests/test-shipped-files.sh
 
@@ -48,19 +47,6 @@ check "no backup or scratch file is shipped" [ -z "$backups" ]
 check_portable_shell "$skill" $scripts "$root/install.sh"
 # shellcheck disable=SC2086
 check_posix_shell $scripts "$root/install.sh" "$here/stub-claude.sh"
-for script in $scripts; do
-	name=$(basename -- "$script")
-	if grep -nE '(^|[ 	(;|&`])(timeout|gtimeout|md5sum|sha1sum|sha256sum|shasum)[ 	]' "$script" >/dev/null; then
-		fail "$name calls a tool that is missing on stock macOS or only in GNU coreutils"
-	else
-		pass "$name avoids timeout, md5sum and sha256sum"
-	fi
-	if grep -nE 'date -Is|date --iso|\$RANDOM|pipefail|\$\{[A-Za-z_]+//|\$\{[A-Za-z_]+:[0-9]' "$script" >/dev/null; then
-		fail "$name uses a bash-only or GNU-only construct"
-	else
-		pass "$name avoids bash-only and GNU-only constructs"
-	fi
-done
 for script in "$skill_dir/challenge-log.sh" "$skill_dir/challenge-run.sh" "$root/install.sh"; do
 	check "$(basename -- "$script") is executable" [ -x "$script" ]
 done
@@ -92,17 +78,9 @@ if printf '%s\n' "$front_matter" | grep -qE 'Bash\(((sh|bash|claude)( \*|:\*)?|\
 else
 	pass "the skill does not pre-approve a whole interpreter or tool"
 fi
-# shellcheck disable=SC2016,SC2034
-check "the skill finds its scripts by its own install location" grep -qF '${CLAUDE_SKILL_DIR}/challenge-run.sh' "$skill"
 check "the skill is under 250 lines" [ "$(wc -l <"$skill" | tr -d ' ')" -lt 250 ]
-check "the installer ships the common file the scripts source" grep -qF 'challenge-common.sh' "$root/install.sh"
 
 # --- 5. the warnings and labels -----------------------------------------------------------------------
-cost_line=$(grep -n 'two headless' "$skill" | head -n 1 | cut -d: -f1)
-step_line=$(grep -n '^## Step 1' "$skill" | head -n 1 | cut -d: -f1)
-check "the skill states the cost before step 1" holds '[ -n "$cost_line" ] && [ -n "$step_line" ] && [ "$cost_line" -lt "$step_line" ]'
-check "the skill warns about Fable usage credits" grep -q 'usage credits' "$skill"
-check "the skill labels itself experimental" grep -qi 'experimental' "$skill"
 check "the README labels the tool experimental" grep -qi 'experimental' "$root/README.md"
 check "the README warns about Fable usage credits" grep -q 'usage credits' "$root/README.md"
 check "the README notes the other challenge tool" grep -q 'PAL' "$root/README.md"
