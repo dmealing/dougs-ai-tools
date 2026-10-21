@@ -27,7 +27,7 @@ Pass any name or hint the user gave as the argument and let the script match it.
 
 ## 2. Show the choice before reading any handoff
 
-Tell the user the chosen stream and its path, the reasons in plain words, its flags or that it has none, and every other candidate with its date and the one fact that sets it apart. Then follow the `action:` line:
+Tell the user the chosen stream and its full path, the reasons in plain words, its flags or that it has none, and every other candidate with its date and the one fact that sets it apart. Then follow the `action:` line:
 
 - `load`: say it in a line or two, then read the file. No question.
 - `ask`: number the candidates, lead with any flags on the proposed one (or, when none is proposed, say why the script made no choice), and ask which one, by number or name, or none if this is new work. Read nothing until the user answers.
