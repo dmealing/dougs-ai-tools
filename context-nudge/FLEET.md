@@ -27,13 +27,13 @@ The percentages are the defaults. What the preset changes is the token triggers:
 | 40 percent | `filling`: still fine, avoid starting a large new task | once |
 | 60 percent | `high`: finish what is open; a handoff or a compact at the next clean break is worth considering | once |
 | 80 percent | `very high`: wrap up the current thread, then hand off or compact | once |
-| within 10 percent of the compaction point | `critical`: stop starting new work and land or park what is open | every prompt |
+| within 10 percent of the compaction point | `critical`: stop starting new work and land or park what is open | every prompt (the model: once) |
 
 The notice needs the percentage to be known: install the status-line half, or set `CONTEXT_NUDGE_WINDOW_SIZE`. See the [README](README.md) for both, and for every other setting.
 
 ## What the notice does and does not do
 
-The notice is shown to whoever is reading the worker's terminal. The worker's model gets one sentence of fact that says it is information only and that a handoff is written only when the user asks for one. The worker never writes a handoff on its own because of a notice. The ask has to come from outside, and in a fleet the supervisor is the one who asks.
+The notice is shown to whoever is reading the worker's terminal. The worker's model gets one sentence of fact, once per band: the reading, that it is information only and not an instruction to stop work, and that Claude Code compacts by itself. It does not mention a handoff, so the worker has no cue to offer or write one; set `CONTEXT_NUDGE_MODEL=off` to send the worker's model nothing at all. The worker never writes a handoff on its own because of a notice. The ask has to come from outside, and in a fleet the supervisor is the one who asks.
 
 ## A worked example: Firstmate
 

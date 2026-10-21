@@ -1,6 +1,6 @@
 # context-nudge
 
-A Claude Code prompt hook that tells you, and the model, how full the context window is. It says nothing until the window is 40 percent full or holds 100,000 tokens, speaks once on entry to each of three bands, and speaks on every prompt once compaction is close.
+A Claude Code prompt hook that tells you, and the model, how full the context window is. It says nothing until the window is 40 percent full or holds 100,000 tokens, speaks once on entry to each of three bands, and speaks to you on every prompt once compaction is close.
 
 ## The problem
 
@@ -14,10 +14,10 @@ On each prompt you submit, the hook looks up how full the window is and decides 
 
 - **Below the first band it is silent.** Most prompts in most sessions produce nothing.
 - **On first entry to a band it speaks once**, to both of you: a one-line message you see, and one sentence in the model's context. It then stays quiet until the next band.
-- **Close to compaction it speaks on every prompt.** At that level the repetition is the point.
+- **Close to compaction it speaks to you on every prompt.** At that level the repetition is the point. The model is told once, on the first of those prompts, and not again.
 - **The wording gets firmer with each band.**
 
-The two messages differ on purpose. Yours carries the reading and the advice, which may suggest a handoff or a compact. The model's is one sentence of fact with no instruction in it: the reading, that it is information only, that a handoff is written only when you ask for one, and that a one-line suggestion to hand off or compact is the most it calls for. The tool never writes a handoff, and the model is told not to on the strength of a notice. A model that is handed advice reads a repeated warning as an order and wraps up work nobody asked it to wrap up.
+The two messages differ on purpose. Yours carries the reading and the advice, which may suggest a handoff or a compact. The model's is one sentence of fact with no instruction in it: the reading, that it is information only and not an instruction to stop work, and that Claude Code compacts the conversation by itself when it needs to. It carries no label and no advice, and it names no next step: a sentence that names a handoff or a compact invites the model to offer one. It reaches the model once per band, never as a countdown on every prompt, because a model that is shown its budget running down tends to wrap up work nobody asked it to wrap up. The tool never writes a handoff. Set `CONTEXT_NUDGE_MODEL=off` to keep your notice and send the model nothing.
 
 For example, at 62 percent of a 200,000-token window you see
 
@@ -28,7 +28,7 @@ Context 62% used (124k of 200k tokens) - high. Finish what is open before starti
 and the model's context gets
 
 ```
-CONTEXT NUDGE: the context window is 62% used (124k of 200k tokens) - high; this is information only, not an instruction to stop work, and a handoff is written only when the user asks for one, so a one-line suggestion to hand off or compact (the user may have the optional /handoff skill) is the most it calls for.
+CONTEXT NUDGE: the context window is 62% used (124k of 200k tokens); this is information only, not an instruction to stop work, and Claude Code compacts the conversation by itself when it needs to.
 ```
 
 ### Default bands and messages
@@ -41,7 +41,7 @@ A band is reached at its percentage of the context maximum **or** at its token c
 | 1 | 40 percent or 100,000 tokens | `filling` | once | Still fine. Avoid starting a large new task in this session. |
 | 2 | 60 percent or 200,000 tokens | `high` | once | Finish what is open before starting something new. A handoff or a compact at the next clean break is worth considering. |
 | 3 | 80 percent or 300,000 tokens | `very high` | once | Quality over a window this full is likely dropping. Wrap up the current thread, then hand off or compact. |
-| near compaction | within 10 percent of the compaction point | `critical` | every prompt | Compaction is close. Stop starting new work: land or park what is open now, then hand off or compact. |
+| near compaction | within 10 percent of the compaction point | `critical` | every prompt to you; once to the model | Compaction is close. Stop starting new work: land or park what is open now, then hand off or compact. |
 
 What that gives on the two common windows:
 
@@ -188,6 +188,7 @@ The words, and the rest:
 | `CONTEXT_NUDGE_LABEL_BAND2` | `high` | The label in band 2. |
 | `CONTEXT_NUDGE_LABEL_BAND3` | `very high` | The label in band 3. |
 | `CONTEXT_NUDGE_LABEL_CRITICAL` | `critical` | The label once the every-prompt notices have started. |
+| `CONTEXT_NUDGE_MODEL` | not set | Set it to `off` to send the model nothing: you still get every notice. Any other value leaves the model's sentence on. |
 | `CONTEXT_NUDGE_JQ` | `jq` | The `jq` to run. Give a full path when Claude Code's `PATH` does not include it. `install.sh --write-settings` reads it too. |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude Code's own variable. The tool's files go in the `context-nudge` folder under it. |
 | `NO_COLOR` | not set | Set it to any value for a status line without colour. |
@@ -255,7 +256,7 @@ The [root README](../README.md#how-this-compares) covers the wider field. For mo
 - **[f3kpclon/claude-code-handoff](https://github.com/f3kpclon/claude-code-handoff)** and **[Sting25/claude-code-handoff](https://github.com/Sting25/claude-code-handoff)** warn as context fills and also take the snapshot for you (an operating-system dialog in the first; a git-state snapshot on every clean exit in the second). They are the better choice if you want the saving done without being asked.
 - **Claude Code's own auto-compaction** acts at the end without warning. See the [context window docs](https://code.claude.com/docs/en/context-window).
 
-What is different here: the notice goes to you and to the model, speaks once on entry to each band, and repeats on every prompt only within 10 percent of compaction. It tells the model the window is filling and that a handoff is written only when you ask. It never asks the model to write one.
+What is different here: the notice goes to you and to the model, speaks once on entry to each band, and repeats to you on every prompt only within 10 percent of compaction. It tells the model, once per band, how full the window is and that this is not an instruction to stop. It never asks the model to write a handoff, and never names one to it.
 
 It does not draw anything, and it saves nothing. It also needs `jq` and a line in your status-line script.
 
@@ -265,7 +266,7 @@ It does not draw anything, and it saves nothing. It also needs `jq` and a line i
 sh context-nudge/tests/run.sh
 ```
 
-The path above is from the repository root; the script itself runs from anywhere. It feeds sample hook and status-line input (in `tests/fixtures/`) to the scripts and checks the silences, the one notice per band on a 200,000-token and a 1,000,000-token window, the repeats near compaction, every setting, the override and the dropped band, that the hook and the status line give the same percentage, the cases with no record, a stale record, a missing `jq` and the pruning. It tests `install.sh` against a throwaway directory, checks the shipped files for absolute home paths and for shell that stock macOS lacks, and runs `shellcheck` when it is installed.
+The path above is from the repository root; the script itself runs from anywhere. It feeds sample hook and status-line input (in `tests/fixtures/`) to the scripts and checks the silences, the one notice per band on a 200,000-token and a 1,000,000-token window, the repeats near compaction and that the model is not told them, the model's half turned off, every setting, the override and the dropped band, that the hook and the status line give the same percentage, the cases with no record, a stale record, a missing `jq` and the pruning. It tests `install.sh` against a throwaway directory, checks the shipped files for absolute home paths and for shell that stock macOS lacks, and runs `shellcheck` when it is installed.
 
 ## Related
 
