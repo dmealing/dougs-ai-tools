@@ -124,7 +124,7 @@ A shortened, invented example:
 Re-verify anything above that you are about to act on, and report what has drifted.
 ```
 
-The header fields (`**Project:**`, `**Repo:**`, `**Branch:**`, `**Written:**` and `**Commit:**`) have a fixed format so that tools can read them. `**Commit:**` is the short hash of the commit the checkout was at, so a later session can see how far the checkout has moved; it is left out of a handoff written outside a git repository, and older handoffs do not have it. A handoff leaves out secrets (keys, tokens, passwords, personal data) and says where one lives instead. The full template and a longer example are in [the skill itself](skills/handoff/SKILL.md).
+The header fields (`**Project:**`, `**Repo:**`, `**Branch:**`, `**Written:**` and `**Commit:**`) have a fixed format so that tools can read them. `**Commit:**` is the short hash of the commit the checkout was at, so a later session can see how far the checkout has moved; it is left out of a handoff written outside a git repository, and older handoffs do not have it. A handoff leaves out secrets (keys, tokens, passwords, personal data) and says where one lives instead. The full template is in [the skill](skills/handoff/SKILL.md), and a longer example in [reference.md](skills/handoff/reference.md).
 
 ## The session-start hint
 
@@ -152,7 +152,7 @@ A handoff file earns its place for **unplanned work that spans sessions**, where
 
 The [root README](../README.md#how-this-compares) lists the alternatives with links, including the short handoff skills ([mattpocock/skills](https://github.com/mattpocock/skills/blob/HEAD/skills/productivity/handoff/SKILL.md), [ykdojo](https://github.com/ykdojo/claude-code-tips)), the ones that write into the repository, and the ones that save automatically. In short:
 
-- **Smaller skills are easier to read and to trust.** This skill is several hundred lines of rules. If you only need a note for the next session, a short skill or a single prompt is enough.
+- **Smaller skills are easier to read and to trust.** This skill is about 140 lines of rules. If you only need a note for the next session, a short skill or a single prompt is enough.
 - **Claude Code's own `/compact`, `--continue` and `--resume`** cover a single sitting and simple resuming, and `claude --resume` also recovers a crashed session.
 - **What this skill does differently:** it refuses to write while work that would die with the session is still running; it keeps several streams per project outside the repository, live ones apart from `done/`; it rewrites a handoff from scratch (keeping the previous version) so finished work drops out and dead ends survive; and it writes only when asked.
 
@@ -182,16 +182,18 @@ sh handoff/tests/run.sh
 
 The path above is from the repository root; the script itself runs from anywhere. It tests `install.sh` against a throwaway directory, checks the shipped files for absolute home paths and for shell that stock macOS lacks, and runs `shellcheck` when it is installed.
 
-## Trigger evaluation
+## Evaluation
 
-`handoff/evals/` holds a suite for `claude plugin eval` that checks the skill runs only when asked. Four cases should trigger it: `/handoff`, `/handoff` with words, "hand this off", and "write a prompt to continue in a fresh session". Five should not: a context-usage notice, a long session, "wrap up", "summarize what we did", and a merged pull request.
+`handoff/evals/` holds a suite for `claude plugin eval`. Most cases check that the skill runs only when asked. Four should trigger it: `/handoff`, `/handoff` with words, "hand this off", and "write a prompt to continue in a fresh session". Five should not: a context-usage notice (the context-nudge sentence, word for word), a long session, "wrap up", "summarize what we did", and a merged pull request.
+
+Two more cases check the skill body rather than when it runs. They pass only when no file is written: one asks for a handoff while a background job the session started is still running, and one reports finished work with "nice". They need the Write and Bash grants below; without them the model cannot write anything, and the two cases pass without testing anything. Bash runs in Claude Code's sandbox during an eval.
 
 ```sh
 cd handoff
-claude plugin eval . --ablation none --no-publish
+claude plugin eval . --ablation none --no-publish --allow-tools Write Bash
 ```
 
-**Running it uses model quota.** One run is 16 agent sessions (7 cases at 2 runs, 2 command cases at 1, no baseline arm), plus 3 short judge calls for each of the two slash-command cases. It is not part of `sh handoff/tests/run.sh` or `sh tests/run.sh`, and nothing in the repository runs it for you. Needs Claude Code 2.1.269 or later.
+**Running it uses model quota.** One run is 20 agent sessions (9 cases at 2 runs, 2 command cases at 1, no baseline arm), plus 3 short judge calls for each of the two slash-command cases. It is not part of `sh handoff/tests/run.sh` or `sh tests/run.sh`, and nothing in the repository runs it for you. Needs Claude Code 2.1.269 or later.
 
 The plain-words cases check that the Skill tool was called. A slash command expands inline in a headless run and never calls the Skill tool, so the two command cases are graded by a judge on the reply instead.
 

@@ -125,7 +125,7 @@ These descriptions come from each project's own README, source or documentation,
 - **The permission mode is not pinned,** so what an arm's Bash may run depends on your Claude Code settings. The arms read the live working tree, not the pinned commit.
 - **The brief is the controller's.** Every fact in it is the agent's, and a false one reaches both arms. The scope check makes the gap visible; it does not close it.
 - **The tests use a stub `claude`.** They check the scripts, not the CLI. The JSON fields and flags the scripts rely on are documented only lightly, so a Claude Code release can break a run before the tests notice.
-- **The skill is long,** about as long as the handoff skill, and the agent has to follow it. The measurements are in a second file that loads only on demand.
+- **The skill is not short:** about 90 lines, and the agent has to follow it. The measurements are in a second file that loads only on demand.
 
 ## Tests
 
