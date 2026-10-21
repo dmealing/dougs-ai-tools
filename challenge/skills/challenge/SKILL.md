@@ -17,7 +17,7 @@ A challenge sends one neutral brief to two independent arms and gives the user a
 
 ## Cost: tell the user before you dispatch
 
-A run is two headless `claude -p` sessions (the arms) plus two calls on a third, cheaper model (the differential). On a subscription that uses plan quota; with an API key it is metered money. The per-arm cap is the CLI's own estimate and can be passed. Say this in one line before you start.
+A run is two headless `claude -p` sessions (the arms) plus two calls on a third, cheaper model (the differential). On a subscription that uses plan quota; with an API key it is metered money. The per-arm cap is the CLI's own estimate and can be passed. Say this in one line before you start, so the spend is never a surprise.
 
 The default pair is Opus 5.5 and Opus 5. Add `--fable` only when the user asked for it: Fable 5.1 costs 2.5 times Opus 5.5 per token, and under `-p` Claude Code bills Fable to usage credits without asking. Say so when you use it.
 
