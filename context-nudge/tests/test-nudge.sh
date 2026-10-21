@@ -28,7 +28,7 @@ unset CONTEXT_NUDGE_BAND1_PERCENT CONTEXT_NUDGE_BAND1_TOKENS \
 	CONTEXT_NUDGE_REPEAT_MARGIN CONTEXT_NUDGE_WINDOW_SIZE CONTEXT_NUDGE_COMPACT_WINDOW \
 	CONTEXT_NUDGE_LABEL_OK CONTEXT_NUDGE_LABEL_BAND1 CONTEXT_NUDGE_LABEL_BAND2 \
 	CONTEXT_NUDGE_LABEL_BAND3 CONTEXT_NUDGE_LABEL_CRITICAL CONTEXT_NUDGE_JQ \
-	CONTEXT_NUDGE_MAX_AGE
+	CONTEXT_NUDGE_MAX_AGE CONTEXT_NUDGE_MODEL
 CLAUDE_CONFIG_DIR="$work/cfg"
 NO_COLOR=1
 export CLAUDE_CONFIG_DIR NO_COLOR
@@ -96,6 +96,11 @@ spoke() {
 	[ "$status" -eq 0 ] && [ ! -s "$work/err" ] && says "Context $1% used" &&
 		model_notice | grep -q "CONTEXT NUDGE: the context window is $1% used" &&
 		[ "$(jq -r '.hookSpecificOutput.hookEventName' "$work/out")" = UserPromptSubmit ]
+}
+# repeated <percentage>: the notice again, to the user only.
+repeated() {
+	[ "$status" -eq 0 ] && [ ! -s "$work/err" ] && says "Context $1% used" &&
+		[ "$(jq -r 'has("hookSpecificOutput")' "$work/out")" = false ]
 }
 # shows <expected status line> <status_json arguments...> [-- <VARIABLE=value>...]
 shows() {
@@ -177,11 +182,11 @@ check "200K window: first notice at 40 percent, before 100K tokens" spoke 40
 check "the first notice is mild" says "filling. Still fine"
 check "the notice gives the token counts against the real window" says "(80k of 200k tokens)"
 check "the model is told the notice is information only" tells_model "this is information only, not an instruction to stop work"
-check "the model is told a handoff is written only when the user asks" \
-	tells_model "a handoff is written only when the user asks for one"
-check "the model may suggest a handoff or compacting in one line" \
-	tells_model "a one-line suggestion to hand off or compact"
-check "the handoff skill is named only as optional" tells_model "the user may have the optional /handoff skill"
+check "the model is told compaction happens by itself" \
+	tells_model "Claude Code compacts the conversation by itself when it needs to"
+check "the model's notice does not mention a handoff" model_not_told "hand"
+check "the model's notice names no skill" model_not_told "/"
+check "the model's notice carries no label" model_not_told "filling"
 check "the user message does not name /handoff" user_not_told /handoff
 check "the advice goes to the user only" model_not_told "Still fine"
 check "the model's notice is one sentence" [ "$(model_notice | tr -cd '.!?' | wc -c | tr -d ' ')" -eq 1 ]
@@ -224,10 +229,11 @@ prompt s1
 check "200K window: speaks within 10 percent of compaction" spoke 90
 check "the top notice is the firmest" says "critical. Compaction is close. Stop starting new work"
 prompt s1
-check "speaks again on the next prompt" spoke 90
+check "speaks to the user again on the next prompt" repeated 90
+check "but not to the model" model_not_told "CONTEXT NUDGE"
 at s1 195
 prompt s1
-check "and again higher up" spoke 97
+check "and again higher up, to the user only" repeated 97
 
 # --- usage falls ------------------------------------------------------------------------
 at s1 90
@@ -261,7 +267,7 @@ at big 900 1000000
 prompt big
 check "1M window: every prompt within 10 percent of compaction" spoke 90
 prompt big
-check "1M window: and repeats" spoke 90
+check "1M window: and repeats, to the user only" repeated 90
 
 # --- every threshold is adjustable ---------------------------------------------------------
 at c 50
@@ -296,10 +302,24 @@ prompt c7
 prompt c7 "" CONTEXT_NUDGE_REPEAT_MARGIN=15
 check "a wider margin starts the every-prompt notices sooner" spoke 85
 prompt c7 "" CONTEXT_NUDGE_REPEAT_MARGIN=15
-check "and they repeat" spoke 85
+check "and they repeat, to the user only" repeated 85
 at c8 45
 prompt c8 "" CONTEXT_NUDGE_BAND1_PERCENT=nonsense
 check "a setting that is not a number falls back to its default" silent
+
+# --- the model's half can be turned off --------------------------------------------------------
+at m 80
+prompt m "" CONTEXT_NUDGE_MODEL=off
+check "with CONTEXT_NUDGE_MODEL=off the user is still told" says "Context 40% used (80k of 200k tokens) - filling. Still fine"
+check "and the model is not" [ "$(jq -r 'has("hookSpecificOutput")' "$work/out")" = false ]
+prompt m "" CONTEXT_NUDGE_MODEL=off
+check "and the band still counts as announced" silent
+at m 180
+prompt m "" CONTEXT_NUDGE_MODEL=off
+check "near compaction the model is not told either" repeated 90
+at m2 80
+prompt m2 "" CONTEXT_NUDGE_MODEL=on
+check "any other value leaves the model's half on" spoke 40
 
 # --- an override for the context maximum ------------------------------------------------------
 at o 150 1000000

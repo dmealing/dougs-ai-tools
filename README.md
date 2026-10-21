@@ -62,7 +62,7 @@ Both are built for their own agent and do not apply to Claude Code.
 - **Several streams per project, stored outside the repository.** Each is one file, `<project>/<stream>.md`; finished and superseded ones move to `done/`. Nothing can be committed by accident, and one project can have several threads in flight.
 - **A handoff is rewritten, not edited,** and the previous version is kept in `done/`. A finished item cannot linger in the file, and dead ends are carried forward on purpose.
 - **pickup chooses with a script and shows its reasons** before it reads anything, and flags a handoff that is stale, points at a missing branch or checkout, or whose pull request has merged. Ambiguous cases are put to you, not guessed.
-- **context-nudge informs and does not instruct.** It speaks once on entry to each band, and on every prompt only once compaction is close. The sentence it gives the model says that a handoff is written only when the user asks.
+- **context-nudge informs and does not instruct.** It speaks once on entry to each band, and on every prompt only once compaction is close. The sentence it gives the model, once per band, is the reading and that it is not an instruction to stop; it names no handoff, and `CONTEXT_NUDGE_MODEL=off` turns it off.
 
 ### Where these tools are weaker
 

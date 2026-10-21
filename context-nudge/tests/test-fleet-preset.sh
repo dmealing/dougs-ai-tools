@@ -95,8 +95,8 @@ check "near compaction it repeats on every prompt" says_label 'critical'
 # --- the notice never tells the model to write a handoff ----------------------------------
 reading w6 200000 80000 preset
 model_sentence() { jq -r '.hookSpecificOutput.additionalContext' "$work/out"; }
-check "the model's sentence says a handoff is written only when the user asks" \
-	sh -c "$(model_sentence | grep -qF 'a handoff is written only when the user asks for one' && echo true || echo false)"
+check "the model's sentence does not mention a handoff" \
+	sh -c "$(model_sentence | grep -qF 'hand' && echo false || echo true)"
 check "the model's sentence says it is information only" \
 	sh -c "$(model_sentence | grep -qF 'information only' && echo true || echo false)"
 

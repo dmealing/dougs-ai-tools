@@ -1,7 +1,7 @@
 #!/bin/sh
 # UserPromptSubmit hook: tell the user and the model how full the context
-# window is: once on entry to each band, and on every prompt once compaction
-# is close.
+# window is. Both hear it once on entry to each band; once compaction is close
+# the user hears it on every prompt and the model only on the first.
 #
 # The hook input carries no context usage, so the percentage comes from the
 # file the status-line half writes (context-nudge-cache.sh or
@@ -14,7 +14,9 @@
 #   systemMessage                         shown to the user: the reading and
 #                                         the advice
 #   hookSpecificOutput.additionalContext  added to the model's context: one
-#                                         sentence of fact, with no instruction
+#                                         sentence of fact, with no instruction;
+#                                         left out on a repeat, and always when
+#                                         CONTEXT_NUDGE_MODEL is off
 #
 # Called with --plugin, it also keeps a copy of the status-line scripts under
 # the context-nudge folder, so settings can name a path that does not change
@@ -114,16 +116,26 @@ fi
 printf '%s\n' "$cn_level" >"$state" 2>/dev/null || :
 
 # --- the two messages ----------------------------------------------------------
-reading="${cn_shown}% used ($((cn_used / 1000))k of $((cn_window / 1000))k tokens) - ${cn_label_text}"
+fact="${cn_shown}% used ($((cn_used / 1000))k of $((cn_window / 1000))k tokens)"
 
-# The advice is for the user. The model gets the reading as one sentence of
-# fact, worded so that it cannot be taken for an order.
-"$cn_jq" -n --arg reading "$reading" --arg advice "$cn_advice" '{
-	systemMessage: ("Context " + $reading + ". " + $advice),
-	hookSpecificOutput: {
-		hookEventName: "UserPromptSubmit",
-		additionalContext: ("CONTEXT NUDGE: the context window is " + $reading
-			+ "; this is information only, not an instruction to stop work, and a handoff is written only when the user asks for one, so a one-line suggestion to hand off or compact (the user may have the optional /handoff skill) is the most it calls for.")
-	}
-}'
+# The model hears of a level once, on entry; only the user hears the repeats
+# near compaction. A reading shown to the model on every prompt reads as a
+# countdown, and a countdown can make a model wrap up early.
+tell_model=1
+[ "$cn_level" -gt "$last" ] || tell_model=0
+[ "${CONTEXT_NUDGE_MODEL:-}" != off ] || tell_model=0
+
+# The advice and the label are for the user. The model gets the bare reading
+# as one sentence of fact, worded so that it cannot be taken for an order and
+# naming no next step, so it suggests none.
+"$cn_jq" -n --arg fact "$fact" --arg level "$cn_label_text" --arg advice "$cn_advice" \
+	--argjson tell_model "$tell_model" '
+	{systemMessage: ("Context " + $fact + " - " + $level + ". " + $advice)}
+	+ if $tell_model == 1 then {
+		hookSpecificOutput: {
+			hookEventName: "UserPromptSubmit",
+			additionalContext: ("CONTEXT NUDGE: the context window is " + $fact
+				+ "; this is information only, not an instruction to stop work, and Claude Code compacts the conversation by itself when it needs to.")
+		}
+	} else {} end'
 exit 0
