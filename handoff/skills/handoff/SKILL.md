@@ -28,7 +28,7 @@ Classify every running thing:
 
 Anything you mean to do after it belongs in `## Still to do`. `/handoff and then fix the retry bug` means the bug is the next session's first task. Finish an open todo first, or write it down.
 
-After writing, end with the absolute path on its own line and the `wc -lm` counts, and make no further tool calls: the path is how the user finds the file, and later output scrolls it away. One stream, one file. If the user asks again after more work, rewrite it fresh.
+After writing, run nothing but the `wc -lm` count, and make the absolute path and those counts the last thing you say: the path is how the user finds the file, and later output scrolls it away. One stream, one file. If the user asks again after more work, rewrite it fresh.
 
 # PART 2 — Where it goes
 
@@ -140,4 +140,4 @@ Words after `/handoff` (`/handoff next: add the retry ceiling setting`, `/handof
 
 # PART 6 — Close out
 
-End with the absolute path on its own line and the counts from `wc -lm "$dir/<stream>.md"`. If you kept a previous version, say where. Tell the user to start a new session in the same repository and say `Read <path> and continue from it`, or `/pickup <stream>` if the `pickup` skill is installed. Then stop.
+If you kept a previous version, say where. Tell the user to start a new session in the same repository and say `Read <path> and continue from it`, or `/pickup <stream>` if the `pickup` skill is installed. Then end with the absolute path on its own line, followed only by the counts from `wc -lm "$dir/<stream>.md"`, and stop.
