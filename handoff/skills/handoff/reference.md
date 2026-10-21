@@ -1,14 +1,14 @@
 # Handoff reference
 
-Read on demand by the handoff skill: the worked example when the shape of a section is unclear, the mistakes list when something feels off. Nothing here changes the gates in SKILL.md.
+Read on demand: the full test for what goes in a handoff, a worked example, and mistakes that the gates in SKILL.md do not already cover.
 
 # What earns a line
 
-An entry must pass both tests. **No size target overrides them**, in either direction.
+An entry must pass both tests, whatever the resulting size.
 
-**1. Recoverability — can the next session get this in one command?** What shipped (`git log`), build and test mechanics (`CLAUDE.md`, the README), architecture and conventions (project docs) and current file contents are recoverable: write nothing. **Why an approach was abandoned**, **why a live decision was made**, **a doc that is currently stale** and **a false alarm already diagnosed** are recoverable nowhere: keep them. Recoverable means *redundant*, not *cheap*, so use this test to cut duplication, not to shrink the file. **In flight** is the deliberate exception: state it in one line even though a status command would find it.
+**1. Can the next session recover it with one command?** What shipped (`git log`), build and test mechanics (`CLAUDE.md`, the README), architecture and conventions (project docs) and current file contents are recoverable: leave them out. Why an approach was abandoned, why a live decision was made, a doc that is now stale and a false alarm already diagnosed are recoverable nowhere: keep them. Recoverable means redundant, not cheap. **In flight** is the exception: state it in one line even though a status command would find it.
 
-**2. The stranger test — would someone holding only this line avoid the mistake we made?** If not, it needs a file, a line number and a reason, or it gets cut.
+**2. Would someone holding only this line avoid the mistake we made?** If not, add the file, line number and reason, or cut it.
 
 # Worked example
 
@@ -77,22 +77,10 @@ Re-verify anything above that you are about to act on, and report what has drift
 
 # Common mistakes
 
-**Writing one over live, un-re-attachable work.** A session wrote a handoff with the words *"Last test still running. Let me write the handoff now while the result is fresh."* The run died with the session. Gate 2 exists for this.
+**Cutting rationale because "it's in the commit."** Commits record what landed, not what was rejected, and a missing *why* invites a confident wrong one.
 
-**Continuing to work after writing it.** The path scrolls away and the file is effectively lost.
-
-**Editing instead of rewriting.** Finished work survives in `## Still to do` and the next session redoes it.
-
-**Cutting dead ends to save space.** The least recoverable thing you know. Cut a status recap instead.
-
-**Cutting rationale because "it's in the commit."** Commits record what landed, not what was rejected. Reconstructing rationale afterwards is unreliable — a missing *why* invites a confident wrong *why*.
-
-**Writing a session recap.** What happened is in `git log`. The reader needs what is *true*.
+**Writing a session recap.** What happened is in `git log`. The reader needs what is true now.
 
 **Splitting overflow into a second file.** If it belongs in the handoff, it goes in the handoff.
 
-**Filing the same fact twice** across Dead ends and What-will-mislead-you. Tried-and-failed goes in Dead ends; everything else that costs time goes in the other.
-
-**Leaving a finished stream at the top level.** Archive it to `done/` so nobody picks up dead work.
-
-**Filing it under the wrong project folder.** Use the rule in Part 3, not the name of the worktree you are in.
+**Filing one fact twice.** Tried-and-failed goes in Dead ends; anything else that costs time goes in What will mislead you.

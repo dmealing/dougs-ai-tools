@@ -66,7 +66,7 @@ Both are built for their own agent and do not apply to Claude Code.
 
 ### Where these tools are weaker
 
-- **The handoff skill is long.** It is a few hundred lines of rules, against a few lines for the smallest alternatives, and a model has to read and follow them. The worked example and the list of mistakes load only on demand, but the gates do not.
+- **The handoff skill is long.** It is about 140 lines of rules, against a few lines for the smallest alternatives, and a model has to read and follow them. The worked example and the list of mistakes load only on demand, but the gates do not.
 - **Claude Code's own picker and `--continue` cover simple resuming.** pickup adds a layer, and earns it only when you keep several streams per project.
 - **Nothing is saved automatically.** If a session crashes or is compacted by force, no handoff exists. Claude Code keeps the transcript, and `claude --resume` recovers the session.
 - **Handoffs are local to one machine and written for Claude Code.** They do not travel to a colleague, another harness or another computer.

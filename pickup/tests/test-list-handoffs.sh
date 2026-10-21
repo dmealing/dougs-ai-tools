@@ -534,7 +534,7 @@ gh=$no_gh
 list "$store" "$checkout"
 check "gh absent: the listing still works" has_line "proposed: 1 fix-label-printer"
 check "gh absent: the check is reported unavailable" has_line "pr-check: unavailable (the GitHub CLI was not found)"
-check "gh absent: the state is unknown, not none" has_line "  pr: unknown"
+check "gh absent: the state is unknown, not none" has_line "  pr: unknown (not checked; not proof there is none)"
 check "gh absent: no pull-request flag" lacks_text "flag: pr-"
 check "gh absent: action is still load" has_line "action: load"
 
@@ -543,7 +543,7 @@ FAKE_GH_FAIL=1
 export FAKE_GH_FAIL
 list "$store" "$checkout"
 check "gh failing: the check is reported unavailable" has_text "pr-check: unavailable (the GitHub CLI failed"
-check "gh failing: the state is unknown" has_line "  pr: unknown"
+check "gh failing: the state is unknown" has_line "  pr: unknown (not checked; not proof there is none)"
 check "gh failing: action is still load" has_line "action: load"
 FAKE_GH_FAIL=0
 

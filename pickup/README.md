@@ -126,7 +126,7 @@ A flag never hides a handoff. It is printed with the candidate, and a flag on th
 | `legacy-project` | The file is filed under the old project name of a bare-clone layout and its recorded checkout cannot be checked, so it may belong to another repository. |
 | `header-incomplete` | The file lacks a usable `**Repo:**`, `**Branch:**` or `**Written:**` value. |
 
-The pull-request flags need `gh`, installed and working, in a repository hosted on GitHub. One call is made, for the 200 most recent pull requests of the repository you are in. When it cannot be made, the listing says `pr-check: unavailable` and each candidate shows `pr: unknown`, which is not the same as having no pull request. Three cases are never a flag:
+The pull-request flags need `gh`, installed and working, in a repository hosted on GitHub. One call is made, for the 200 most recent pull requests of the repository you are in. When it cannot be made, the listing says `pr-check: unavailable` and each candidate shows `pr: unknown (not checked; not proof there is none)`, which is not the same as having no pull request. Three cases are never a flag:
 
 - an open pull request;
 - a pull request that was merged or closed before the handoff was written (`pr: earlier #N`): it belongs to older work on a branch name that was used again;
@@ -212,7 +212,7 @@ The agent turns that into:
 | `note:` | Zero or more lines that explain the result: a tie, a name that matched nothing, or a store that does not exist yet. |
 | `skipped:` | Zero or more files in this project's folder whose header names another project. |
 
-Each candidate block starts with `[rank] stream` and holds, indented by two spaces: `path:` (the exact file), `written:` (date, age, and a file-time label when it applies), `recorded-repo:`, `recorded-branch:`, `found-by:`, `pr:` (`open #N`, `merged #N`, `closed #N`, `earlier #N`, `none-found`, `unknown`, `not-checked (why)` or `not-applicable`), `score:`, then one or more `reason:` and `weak:` lines (`reason: none` when there are neither) and one or more `flag:` lines (`flag: none` when there are none).
+Each candidate block starts with `[rank] stream` and holds, indented by two spaces: `path:` (the exact file), `written:` (date, age, and a file-time label when it applies), `recorded-repo:`, `recorded-branch:`, `found-by:`, `pr:` (`open #N`, `merged #N`, `closed #N`, `earlier #N`, `none-found`, `unknown (…)`, `not-checked (why)` or `not-applicable`), `score:`, then one or more `reason:` and `weak:` lines (`reason: none` when there are neither) and one or more `flag:` lines (`flag: none` when there are none).
 
 The script exits 0 whenever it printed a listing, including an empty one, and 2 on a usage error.
 

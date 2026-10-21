@@ -610,8 +610,8 @@ while [ "$index" -le "$count" ]; do
 		# This repository's pull requests say nothing about another one's branch.
 		pr='not-checked (recorded in another repository)'
 	elif [ "$pr_check" != checked ]; then
-		# Not checked is not the same as no pull request.
-		pr='unknown'
+		# Not checked is not the same as no pull request, and the line says so.
+		pr='unknown (not checked; not proof there is none)'
 	else
 		[ "$written" != unknown ] || written=''
 		pr=$(pull_request_state "$branch" "$written")
