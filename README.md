@@ -13,6 +13,20 @@ Each tool lives in its own folder with its own README, install steps and tests. 
 | [context-nudge](context-nudge/) | A prompt hook that tells you and the model how full the context window is: silent until it is 40 percent full or holds 100K tokens, one notice on entry to each of three bands, and a notice on every prompt once compaction is close, so you can finish, compact or hand off in time. Needs `jq` and a one-line status-line addition. | Available |
 | [challenge](challenge/) | A skill for when you doubt a conclusion: one neutral brief goes to two independent headless Claude runs, then a model that cannot see which wrote which writes a differential of where they converged and split. Every run starts two sessions plus a differential step, so it uses plan quota or metered money. | Experimental |
 
+## Install
+
+The repository is a Claude Code plugin marketplace:
+
+```sh
+claude plugin marketplace add dmealing/dougs-ai-tools
+claude plugin install handoff@dougs-ai-tools
+claude plugin install pickup@dougs-ai-tools   # optional, experimental; declares handoff as a dependency
+claude plugin install context-nudge@dougs-ai-tools   # optional; see its README for the status-line step
+claude plugin install challenge@dougs-ai-tools   # optional, experimental; every run spends quota or money, see its README
+```
+
+Each tool's README also describes an install that does not use the plugin system.
+
 ## How this compares
 
 These are not the only answers to the same problem, and for some situations they are not the best ones. What follows says what each alternative does, in a line, where it is the better choice, and where these tools differ. The descriptions come from each project's own README or source, read in October 2026; they change, so follow the link before relying on one.
@@ -72,20 +86,6 @@ Both are built for their own agent and do not apply to Claude Code.
 - **Handoffs are local to one machine and written for Claude Code.** They do not travel to a colleague, another harness or another computer.
 - **context-nudge needs `jq` and a status-line step.** The tools that only draw a gauge need neither.
 
-## Install
-
-The repository is a Claude Code plugin marketplace:
-
-```sh
-claude plugin marketplace add dmealing/dougs-ai-tools
-claude plugin install handoff@dougs-ai-tools
-claude plugin install pickup@dougs-ai-tools   # optional, experimental; declares handoff as a dependency
-claude plugin install context-nudge@dougs-ai-tools   # optional; see its README for the status-line step
-claude plugin install challenge@dougs-ai-tools   # optional, experimental; every run spends quota or money, see its README
-```
-
-Each tool's README also describes an install that does not use the plugin system.
-
 ## Tests
 
 One command runs every tool's tests locally:
@@ -94,7 +94,7 @@ One command runs every tool's tests locally:
 sh tests/run.sh
 ```
 
-Each tool also carries its own, for example `sh handoff/tests/run.sh`. Code that the tools share (the install logic, the test helpers and the test runner) is in `lib/`.
+It also runs `claude plugin validate --strict` on every plugin and on the marketplace manifest when `claude` is installed. Each tool also carries its own tests, for example `sh handoff/tests/run.sh`. Code that the tools share (the install logic, the test helpers and the test runner) is in `lib/`.
 
 ## Licence
 
