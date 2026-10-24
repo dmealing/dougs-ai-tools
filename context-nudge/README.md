@@ -250,7 +250,7 @@ Once a day the hook deletes `.usage` and `.band` files that have not been writte
 
 ## How this compares
 
-The [root README](../README.md#how-this-compares) covers the wider field. For monitoring alone:
+The [root README](https://github.com/dmealing/dougs-ai-tools/blob/main/README.md#how-this-compares) covers the wider field. For monitoring alone:
 
 - **[ccstatusline](https://github.com/sirmalloc/ccstatusline) and [claude-hud](https://github.com/jarrodwatts/claude-hud)** draw context usage in a status line you can see at all times. They are the better choice if you want a gauge, and they need no `jq`. They do not put anything in the conversation, so the model never learns the window is filling.
 - **[f3kpclon/claude-code-handoff](https://github.com/f3kpclon/claude-code-handoff)** and **[Sting25/claude-code-handoff](https://github.com/Sting25/claude-code-handoff)** warn as context fills and also take the snapshot for you (an operating-system dialog in the first; a git-state snapshot on every clean exit in the second). They are the better choice if you want the saving done without being asked.
@@ -270,8 +270,8 @@ The path above is from the repository root; the script itself runs from anywhere
 
 ## Related
 
-[handoff](../handoff/) writes the file a fresh session continues from, and is the usual thing to do when this tool says the window is full. It is optional: context-nudge works without it, says "hand off or compact" either way, and never starts a handoff itself.
+[handoff](https://github.com/dmealing/dougs-ai-tools/tree/main/handoff/) writes the file a fresh session continues from, and is the usual thing to do when this tool says the window is full. It is optional: context-nudge works without it, says "hand off or compact" either way, and never starts a handoff itself.
 
 ## Licence
 
-Apache-2.0. See [LICENSE](../LICENSE).
+Apache-2.0. See [LICENSE](https://github.com/dmealing/dougs-ai-tools/blob/main/LICENSE).

@@ -137,4 +137,4 @@ They use a stub `claude` that records its calls and prints canned JSON; no model
 
 ## Licence
 
-Apache-2.0. See [LICENSE](../LICENSE).
+Apache-2.0. See [LICENSE](https://github.com/dmealing/dougs-ai-tools/blob/main/LICENSE).

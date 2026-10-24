@@ -4,7 +4,7 @@
 
 A Claude Code skill that resumes work from a handoff without you pasting a path. It finds the handoff for the checkout you are in and **shows which one it chose, why, and what else it could have chosen, before it reads anything**.
 
-It requires the [handoff](../handoff/) skill, which writes the files this one reads. The plugin declares that dependency, so `claude plugin install pickup@dougs-ai-tools` brings the handoff plugin with it. The install script does not check it: with pickup installed alone that way, `/pickup` simply finds nothing to pick up.
+It requires the [handoff](https://github.com/dmealing/dougs-ai-tools/tree/main/handoff/) skill, which writes the files this one reads. The plugin declares that dependency, so `claude plugin install pickup@dougs-ai-tools` brings the handoff plugin with it. The install script does not check it: with pickup installed alone that way, `/pickup` simply finds nothing to pick up.
 
 ## The problem
 
@@ -246,7 +246,7 @@ sh ~/.claude/skills/pickup/list-handoffs.sh
 
 ## How this compares
 
-Other resume paths exist, and some are better for some jobs. The [root README](../README.md#how-this-compares) lists the alternatives; these are the ones that matter here.
+Other resume paths exist, and some are better for some jobs. The [root README](https://github.com/dmealing/dougs-ai-tools/blob/main/README.md#how-this-compares) lists the alternatives; these are the ones that matter here.
 
 - **`claude --continue` and `claude --resume`** ([documented here](https://code.claude.com/docs/en/sessions)) reopen the whole earlier conversation. They are the better choice for simple resuming, and for a session that crashed, because Claude Code saves the transcript as you work. pickup reads a handoff instead, so it helps when you want a fresh context, or when you keep several streams in one project.
 - **Resume commands in other handoff tools**, such as [HumanLayer's `resume_handoff`](https://github.com/humanlayer/humanlayer/blob/HEAD/.claude/commands/resume_handoff.md) or the `/pickup` in [adrian-zielinski/session-handoff](https://github.com/adrian-zielinski/session-handoff), read a path, a ticket or an index. The agent decides which file to read.
@@ -278,4 +278,4 @@ The plain-words cases check that the Skill tool was called. A slash command expa
 
 ## Licence
 
-Apache-2.0. See [LICENSE](../LICENSE).
+Apache-2.0. See [LICENSE](https://github.com/dmealing/dougs-ai-tools/blob/main/LICENSE).

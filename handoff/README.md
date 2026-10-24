@@ -51,7 +51,7 @@ git clone https://github.com/dmealing/dougs-ai-tools.git
 sh dougs-ai-tools/handoff/install.sh
 ```
 
-This copies the skill (`SKILL.md`, and `reference.md` with the worked example and common mistakes, which the skill reads only when it needs them) to `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/handoff/`, and the command is `/handoff`. The session hint described below is part of the plugin only; the install script does not set it up. Run the script from the cloned repository: it uses code in the repository's `lib/` folder.
+This copies the skill (`SKILL.md`, and `reference.md` with the worked example and common mistakes, which the skill reads only when it needs them) to `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/handoff/`, and the command is `/handoff`. The session hint described below is part of the plugin only; the install script does not set it up. `install.sh` needs a full clone of the repository: run it from the clone, because it uses code in the repository's `lib/` folder.
 
 | Command | Effect |
 |---|---|
@@ -70,7 +70,7 @@ Install it one way, not both, or the skill is listed twice.
 ```
 
 - **`<project>`** is the directory name of the repository's main working tree (the first entry of `git worktree list --porcelain`), so every worktree of one repository shares one folder. Outside a git repository it is the name of the current directory.
-- **A bare clone with its working trees beside it** has the bare directory as that first entry, which names nothing. The project is then named by what holds it: a `.bare` or `.git` directory takes its parent's name, and `name.git` becomes `name`. Handoffs written before this rule sit in a folder named after the bare directory (for example `.bare`); [pickup](../pickup/) still finds them, and you can move them into the project's folder when you like.
+- **A bare clone with its working trees beside it** has the bare directory as that first entry, which names nothing. The project is then named by what holds it: a `.bare` or `.git` directory takes its parent's name, and `name.git` becomes `name`. Handoffs written before this rule sit in a folder named after the bare directory (for example `.bare`); [pickup](https://github.com/dmealing/dougs-ai-tools/tree/main/pickup/) still finds them, and you can move them into the project's folder when you like.
 - **`<stream>`** names the thread of work, usually the branch with `/` replaced by `-`. Several streams can be live in one project at once.
 
 Handoffs live outside the repository so they cannot be committed by accident. If `CLAUDE_CONFIG_DIR` is set, the `handoffs` folder is created there instead of in `~/.claude`.
@@ -150,7 +150,7 @@ A handoff file earns its place for **unplanned work that spans sessions**, where
 
 ## How this compares
 
-The [root README](../README.md#how-this-compares) lists the alternatives with links, including the short handoff skills ([mattpocock/skills](https://github.com/mattpocock/skills/blob/HEAD/skills/productivity/handoff/SKILL.md), [ykdojo](https://github.com/ykdojo/claude-code-tips)), the ones that write into the repository, and the ones that save automatically. In short:
+The [root README](https://github.com/dmealing/dougs-ai-tools/blob/main/README.md#how-this-compares) lists the alternatives with links, including the short handoff skills ([mattpocock/skills](https://github.com/mattpocock/skills/blob/HEAD/skills/productivity/handoff/SKILL.md), [ykdojo](https://github.com/ykdojo/claude-code-tips)), the ones that write into the repository, and the ones that save automatically. In short:
 
 - **Smaller skills are easier to read and to trust.** This skill is about 140 lines of rules. If you only need a note for the next session, a short skill or a single prompt is enough.
 - **Claude Code's own `/compact`, `--continue` and `--resume`** cover a single sitting and simple resuming, and `claude --resume` also recovers a crashed session.
@@ -160,7 +160,7 @@ The [root README](../README.md#how-this-compares) lists the alternatives with li
 
 - **Nothing is saved automatically.** If a session crashes or is compacted by force, no handoff is written. Claude Code keeps every transcript, so `claude --resume` recovers a crashed session. Tools that snapshot on exit or before compaction exist (see the root README) and are the better choice if that is what you want.
 - **Handoffs are local to one machine and written for Claude Code.** They are not meant to reach a colleague, another computer or another agent.
-- **One store per project is shared by all working copies, on purpose.** Every worktree and checkout of a repository reads and writes the same folder. That is what lets a new checkout continue work begun in another, and it is why [pickup](../pickup/) checks the recorded repository and branch before trusting a file.
+- **One store per project is shared by all working copies, on purpose.** Every worktree and checkout of a repository reads and writes the same folder. That is what lets a new checkout continue work begun in another, and it is why [pickup](https://github.com/dmealing/dougs-ai-tools/tree/main/pickup/) checks the recorded repository and branch before trusting a file.
 
 ## Resuming from a handoff
 
@@ -172,7 +172,7 @@ Read ~/.claude/handoffs/parcel-tracker/fix-webhook-retry-backoff.md and continue
 
 The printed path is absolute; `~` is used here only to keep the example short. To see what is live for a project, list its folder: `ls ~/.claude/handoffs/<project>/`.
 
-The experimental [pickup](../pickup/) skill does this step for you: `/pickup` finds the handoff for the current checkout and shows which one it chose and why before loading it.
+The experimental [pickup](https://github.com/dmealing/dougs-ai-tools/tree/main/pickup/) skill does this step for you: `/pickup` finds the handoff for the current checkout and shows which one it chose and why before loading it.
 
 ## Tests
 
@@ -199,14 +199,14 @@ The plain-words cases check that the Skill tool was called. A slash command expa
 
 ## Related
 
-[pickup](../pickup/) (experimental) resumes from the files this skill writes, without pasting a path. This skill does not need it.
+[pickup](https://github.com/dmealing/dougs-ai-tools/tree/main/pickup/) (experimental) resumes from the files this skill writes, without pasting a path. This skill does not need it.
 
-[context-nudge](../context-nudge/) tells you when the context window is filling, which is the usual time to hand off. This skill does not need it either.
+[context-nudge](https://github.com/dmealing/dougs-ai-tools/tree/main/context-nudge/) tells you when the context window is filling, which is the usual time to hand off. This skill does not need it either.
 
 ## Acknowledgements
 
-This skill drew on [claude-code-handoff-skill](https://github.com/ostikwhy-blip/claude-code-handoff-skill) by ostikwhy-blip (MIT licence), a reference for the discipline of verifying before writing, and for the wording of the "confident fiction" and "stranger test" passages. That project's copyright line and permission notice are in [NOTICE](../NOTICE).
+This skill drew on [claude-code-handoff-skill](https://github.com/ostikwhy-blip/claude-code-handoff-skill) by ostikwhy-blip (MIT licence), a reference for the discipline of verifying before writing, and for the wording of the "confident fiction" and "stranger test" passages. That project's copyright line and permission notice are in [NOTICE](https://github.com/dmealing/dougs-ai-tools/blob/main/NOTICE).
 
 ## Licence
 
-Apache-2.0. See [LICENSE](../LICENSE).
+Apache-2.0. See [LICENSE](https://github.com/dmealing/dougs-ai-tools/blob/main/LICENSE).
